@@ -31,7 +31,7 @@ Atlas::Atlas()
     mpCurrentMap = static_cast<Map *>(NULL);
 }
 
-Atlas::Atlas(int initKFid) : mnLastInitKFidMap(initKFid), mHasViewer(false)
+Atlas::Atlas(int initKFid) : mnLastInitKFidMap(initKFid), mHasViewer(false)//: mnLastInitKFidMap(initKFid), mHasViewer(false)這裡是在做變數初始化
 {
     mpCurrentMap = static_cast<Map *>(NULL);
     CreateNewMap();
@@ -41,17 +41,17 @@ Atlas::~Atlas()
 {
     for (std::set<Map *>::iterator it = mspMaps.begin(), end = mspMaps.end(); it != end;)
     {
-        Map *pMi = *it;
+        Map *pMi = *it;// *it = 把指到的那個地址取出來，存到 pMi
 
-        if (pMi)
+        if (pMi)// 如果 pMi 不是 NULL（指针有效）：
         {
             delete pMi;
-            pMi = static_cast<Map *>(NULL);
+            pMi = static_cast<Map *>(NULL);//防呆 把指標歸零
 
-            it = mspMaps.erase(it);
+            it = mspMaps.erase(it);//移除這個元素並返回下一個元素的迭代器
         }
         else
-            ++it;
+            ++it;//如果 pMi 是 NULL（指针无效），则直接跳过这个元素，继续检查下一个元素。
     }
 }
 

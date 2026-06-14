@@ -620,11 +620,11 @@ void Tracking::newParameterLoader(Settings *settings) {//從 Settings 物件讀�
 
     //ORB parameters (SuperPoint extractor)SPextractor
     // 2. 读取特征点参数
-    int nFeatures = settings->nFeatures();
-    int nLevels = settings->nLevels();
-    int fIniThFAST = settings->initThFAST();
-    int fMinThFAST = settings->minThFAST();
-    float fScaleFactor = settings->scaleFactor();
+    int nFeatures = settings->nFeatures();//特徵點數量，ORB extractor 會用到，SuperPoint extractor 也會用到，因為它也有一個 max_keypoints 的設定。
+    int nLevels = settings->nLevels();//金字塔層數，ORB extractor 會用到，SuperPoint extractor 也會用到，因為它也有一個 n_levels 的設定。
+    int fIniThFAST = settings->initThFAST();//這個沒用，因為 SuperPoint extractor 不需要 FAST 角點檢測的閾值了，但 ORB extractor 需要，所以這裡還是讀出來了。
+    int fMinThFAST = settings->minThFAST();//這個也沒用，因為 SuperPoint extractor 不需要 FAST 角點檢測的閾值了，但 ORB extractor 需要，所以這裡還是讀出來了。
+    float fScaleFactor = settings->scaleFactor();//金字塔縮放因子，ORB extractor 會用到，SuperPoint extractor 也會用到，因為它也有一個 scale_factor 的設定。
 
     
     // mpORBextractorLeft = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
@@ -671,7 +671,7 @@ void Tracking::newParameterLoader(Settings *settings) {//從 Settings 物件讀�
  * @brief 根据文件读取相机参数，可快速略过不看
  * @param fSettings 配置文件
  */
-bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)//674 到 1270 行為從設定檔讀相機參數。它是舊版讀法，跟前面 newParameterLoader(settings) 做的事情很像，只是這裡直接從 YAML/config 檔讀。
+bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)//674 到 1488 行為從設定檔讀參數。它是舊版讀法，跟前面 newParameterLoader(settings) 做的事情很像，只是這裡直接從 YAML/config 檔讀。
 {
     mDistCoef = cv::Mat::zeros(4,1,CV_32F);
     cout << endl << "Camera Parameters: " << endl;

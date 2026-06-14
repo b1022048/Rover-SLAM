@@ -46,8 +46,8 @@ LoopClosing::LoopClosing(Atlas *pAtlas, KeyFrameDatabase *pDB, SPVocabulary *pVo
     mbLoopDetected(false), mbMergeDetected(false), mnLoopNumNotFound(0), mnMergeNumNotFound(0), mbActiveLC(bActiveLC),mspmatcher(0.0)
 {
     // 连续性阈值
-    mnCovisibilityConsistencyTh = 3;
-    mpLastCurrentKF = static_cast<KeyFrame*>(NULL);
+    mnCovisibilityConsistencyTh = 3;//目前沒看到有那裡使用到這個參數，使用搜尋功能也沒看到有使用到這個參數的地方
+    mpLastCurrentKF = static_cast<KeyFrame*>(NULL);// 明確告訴編譯器這是 KeyFrame* 的空指標
 
 #ifdef REGISTER_TIMES
 

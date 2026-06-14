@@ -29,9 +29,9 @@ namespace ORB_SLAM3
 {
 
 // 构造函数
-KeyFrameDatabase::KeyFrameDatabase(const SPVocabulary &voc) : mpVoc(&voc)
+KeyFrameDatabase::KeyFrameDatabase(const SPVocabulary &voc) : mpVoc(&voc)//把 mpVocabulary_sp 的位址存進 mpVoc，讓資料庫之後可以使用詞袋。
 {
-    mvInvertedFile.resize(voc.size());
+    mvInvertedFile.resize(voc.size());//建立一個倒排索引表，大小等於詞袋的單字數量。
     //mvInvertedFile.resize(voc.size());
 }
 

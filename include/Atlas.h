@@ -52,8 +52,8 @@ class Atlas
     friend class boost::serialization::access;
 
     // 保存读取都用这个
-    template<class Archive>
-    void serialize(Archive &ar, const unsigned int version)
+    template<class Archive>//class Archive 是 boost 的，看不到它的定義
+    void serialize(Archive &ar, const unsigned int version)//ar 是序列化的讀寫器，用 & 運算子把變數存進檔案或從檔案讀出來，同一段程式碼可以同時做儲存和載入：
     {
         // 由于保存相机是基类，但是实际使用是派生类，所以声明一下
         ar.template register_type<Pinhole>();
@@ -78,7 +78,7 @@ public:
 
     Atlas();
     Atlas(int initKFid); // When its initialization the first map is created
-    ~Atlas();
+    ~Atlas();//SLAM.Shutdown() 後 System 物件被銷毀時，mpAtlas 被 delete，~Atlas() 就自動執行，釋放所有地圖佔用的記憶體。
 
     void CreateNewMap();
     void ChangeMap(Map* pMap);

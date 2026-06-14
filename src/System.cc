@@ -28,8 +28,8 @@
 #include <boost/serialization/string.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>//讀取用的 Archive
+#include <boost/archive/binary_oarchive.hpp>//寫入用的 Archive
 #include <boost/archive/xml_iarchive.hpp>
 #include <boost/archive/xml_oarchive.hpp>
 
@@ -79,7 +79,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
        exit(-1);
     }
     cout<<"cv:filenoded "<<endl;
-    // 查看配置文件版本，不同版本有不同处理方法
+    // 14.5查看配置文件版本，不同版本有不同处理方法
     cv::FileNode node = fsSettings["File.version"];
     if(!node.empty() && node.isString() && node.string() == "1.0")
     {
@@ -107,7 +107,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         }
     }
 
-    // 是否激活回环，默认是开着的
+    // 14.6 是否激活回环，默认是开着的
     node = fsSettings["loopClosing"];
     bool activeLC = true;
     if(!node.empty())
@@ -115,7 +115,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         activeLC = static_cast<int>(fsSettings["loopClosing"]) != 0;
     }
     
-    mStrVocabularyFilePath = strVocFile;
+    mStrVocabularyFilePath = strVocFile;//strVocFile 是建構子的參數（區域變數），函式結束就消失了。mStrVocabularyFilePath 是 System 類別的成員變數，整個物件存活期間都可以使用。
 
     // ORBSLAM3新加的多地图管理功能，这里加载Atlas标识符
     bool loadedAtlas = false;
@@ -128,8 +128,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         // 建立一个新的ORB字典
         //mpVocabulary = new ORBVocabulary();
 
-        mpVocabulary_sp = new SPVocabulary();
-        mpVocabulary_sp->load(strVocFile);
+        mpVocabulary_sp = new SPVocabulary();//建立空的物件
+        mpVocabulary_sp->load(strVocFile);//載入詞袋檔案
         //DBoW3::Vocabulary vocab(strVocFile);
         //mpVocabulary_sp = &vocab;
         //mpVocabulary_sp->load(strVocFile);
@@ -205,7 +205,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         //usleep(10*1000*1000);
     }
 
-    // 如果是有imu的传感器类型，设置mbIsInertial = true;以后的跟踪和预积分将和这个标志有关
+    // 如果是有imu的传感器类型，透過 Atlas 呼叫 Map 的 SetInertialSensor()，最終將 mbIsInertial 設為 true;以后的跟踪和预积分将和这个标志有关
     if (mSensor==IMU_STEREO || mSensor==IMU_MONOCULAR || mSensor==IMU_RGBD)
         mpAtlas->SetInertialSensor();
 
@@ -216,29 +216,29 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpMapDrawer = new MapDrawer(mpAtlas, strSettingsFile, settings_);
 
     //Initialize the Tracking thread
-    //(it will live in the main thread of execution, the one that called this constructor)
-    // 创建跟踪线程（主线程）,不会立刻开启,会在对图像和imu预处理后在main主线程种执行
+    //(it will live in the main thread of execution, the one that called this ㄋconstructor)
+    // 创建跟踪线程（主线程）,不会立刻开启,会在 main 主執行緒中，每次呼叫 TrackStereo 時才執行
     cout << "Seq. Name: " << strSequence << endl;
     mpTracker = new Tracking(this, mpVocabulary_sp, mpFrameDrawer, mpMapDrawer,
-                             mpAtlas, mpKeyFrameDatabase, strSettingsFile, mSensor, settings_, strSequence);
+                             mpAtlas, mpKeyFrameDatabase, strSettingsFile, mSensor, settings_, strSequence);//this： System 把自己的位址傳給 Tracking
 
     //Initialize the Local Mapping thread and launch
     //创建并开启local mapping线程
     mpLocalMapper = new LocalMapping(this, mpAtlas, mSensor==MONOCULAR || mSensor==IMU_MONOCULAR,
-                                     mSensor==IMU_MONOCULAR || mSensor==IMU_STEREO || mSensor==IMU_RGBD, strSequence);
-    mptLocalMapping = new thread(&ORB_SLAM3::LocalMapping::Run,mpLocalMapper);
+                                     mSensor==IMU_MONOCULAR || mSensor==IMU_STEREO || mSensor==IMU_RGBD, strSequence);//建立localmapping物件，裡面有地圖管理的邏輯跟資料
+    mptLocalMapping = new thread(&ORB_SLAM3::LocalMapping::Run,mpLocalMapper);//執行緒，讓 LocalMapping 在背景獨立運行 
     mpLocalMapper->mInitFr = initFr;
 
     // 设置最远3D地图点的深度值，如果超过阈值，说明可能三角化不太准确，丢弃
-    if(settings_)
-        mpLocalMapper->mThFarPoints = settings_->thFarPoints();
+    if(settings_)//讀取設定檔
+        mpLocalMapper->mThFarPoints = settings_->thFarPoints();//新版設定檔
     else
-        mpLocalMapper->mThFarPoints = fsSettings["thFarPoints"];
+        mpLocalMapper->mThFarPoints = fsSettings["thFarPoints"];//舊版設定檔
     // ? 这里有个疑问,C++中浮点型跟0比较是否用精确?
-    if(mpLocalMapper->mThFarPoints!=0)
+    if(mpLocalMapper->mThFarPoints!=0)//根據閾值決定要不要啟用丟棄遠點的功能
     {
         cout << "Discard points further than " << mpLocalMapper->mThFarPoints << " m from current camera" << endl;
-        mpLocalMapper->mbFarPoints = true;
+        mpLocalMapper->mbFarPoints = true;//// 啟用遠點過濾功能，這個功能會在 LocalMapping 908跟Tracking 4178 需確認位置 TODO
     }
     else
         mpLocalMapper->mbFarPoints = false;
@@ -246,16 +246,16 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //Initialize the Loop Closing thread and launch
     // mSensor!=MONOCULAR && mSensor!=IMU_MONOCULAR
     // 创建并开启闭环线程
-    
+    //LoopClosing::LoopClosing(Atlas *pAtlas, KeyFrameDatabase *pDB, SPVocabulary *pVoc, const bool bFixScale, const bool bActiveLC):
     mpLoopCloser = new LoopClosing(mpAtlas, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR, activeLC); // mSensor!=MONOCULAR);
-    mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
+    mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);//std::thread(函式指標, 物件指標) 。告訴系統：「在背景執行 mpLoopCloser->Run()」
 
     //Set pointers between threads
     // 设置线程间的指针
-    mpTracker->SetLocalMapper(mpLocalMapper);
-    mpTracker->SetLoopClosing(mpLoopCloser);
+    mpTracker->SetLocalMapper(mpLocalMapper);//我知道LocalMapping 在哪。mpLocalMapper有三種類別：system.h、tracking.h、LoopClosing.h。mpLocalMapper 的用途是讓其他類別（System、Tracking、LoopClosing）找到 LocalMapping 物件。
+    mpTracker->SetLoopClosing(mpLoopCloser);//mpLoopCloser有兩種類別：system.h、LocalMapping.h。mpLoopCloser 的用途是讓其他類別（System、Tracking、LocalMapping）找到 LoopClosing 物件。
 
-    mpLocalMapper->SetTracker(mpTracker);
+    mpLocalMapper->SetTracker(mpTracker);//mpTracker有四種類別：system.h、LocalMapping.h、LoopClosing.h、Viewer.h。mpTracker 的用途是讓其他類別（System、LocalMapping、LoopClosing、Viewer）找到 Tracking 物件。
     mpLocalMapper->SetLoopCloser(mpLoopCloser);
 
     mpLoopCloser->SetTracker(mpTracker);
@@ -271,17 +271,17 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile,settings_);
         mptViewer = new thread(&Viewer::Run, mpViewer);
         mpTracker->SetViewer(mpViewer);
-        mpLoopCloser->mpViewer = mpViewer;
+        mpLoopCloser->mpViewer = mpViewer;//等號右邊的mpViewer是System 的成員變數，存著 Viewer 物件的位址，左邊 mpLoopCloser->mpViewer：LoopClosing 的成員變數，原本是空的，現在把 Viewer 物件的位址存進去，讓 LoopClosing 也可以找到 Viewer 物件。
         mpViewer->both = mpFrameDrawer->both;
     }
 
     // Fix verbosity
     // 打印输出中间的信息，设置为安静模式
-    Verbose::SetTh(Verbose::VERBOSITY_NORMAL);
+    Verbose::SetTh(Verbose::VERBOSITY_NORMAL);//Verbose的定義寫在system.h裡
 
 }
 
-Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)
+Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)//Sophus ：一個專門處理李群/李代數的 C++ 函式庫，
 {
     if(mSensor!=STEREO && mSensor!=IMU_STEREO)
     {
@@ -291,7 +291,7 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
 
     cv::Mat imLeftToFeed, imRightToFeed;
     if(settings_ && settings_->needToRectify()){
-        cv::Mat M1l = settings_->M1l();
+        cv::Mat M1l = settings_->M1l();//cv::Mat是用來存矩陣
         cv::Mat M2l = settings_->M2l();
         cv::Mat M1r = settings_->M1r();
         cv::Mat M2r = settings_->M2r();
@@ -357,7 +357,7 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
 
     // std::cout << "out grabber" << std::endl;
 
-    unique_lock<mutex> lock2(mMutexState);
+    unique_lock<mutex> lock2(mMutexState);//return Tcw之後就會解鎖
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
     mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
@@ -1532,7 +1532,7 @@ bool System::LoadAtlas(int type)
 
     string pathLoadFileName = "./";
     pathLoadFileName = pathLoadFileName.append(mStrLoadAtlasFromFile);
-    pathLoadFileName = pathLoadFileName.append(".osa");
+    pathLoadFileName = pathLoadFileName.append(".osa");//結果："./" + "mymap" + ".osa" = "./mymap.osa"。append() 是 C++ 標準函式庫 std::string 內建的成員函式
 
     if(type == TEXT_FILE) // File text
     {
@@ -1553,8 +1553,8 @@ bool System::LoadAtlas(int type)
     else if(type == BINARY_FILE) // File binary
     {
         cout << "Starting to read the save binary file"  << endl;
-        std::ifstream ifs(pathLoadFileName, std::ios::binary);
-        if(!ifs.good())
+        std::ifstream ifs(pathLoadFileName, std::ios::binary);//開啟檔案，pathLoadFileName 是要開啟的檔案名稱，std::ios::binary 表示以二進位模式開啟檔案
+        if(!ifs.good())//good() 是 C++ 標準函式庫 ifstream 內建的成員函式，用來檢查檔案是否成功開啟。如果檔案成功開啟，good() 會返回 true；如果檔案無法開啟（例如檔案不存在、路徑錯誤、權限不足等），good() 會返回 false。因此，這段程式碼的作用是檢查指定的檔案是否存在並且可以被成功開啟，如果無法開啟則輸出 "Load file not found" 的訊息並返回 false。
         {
             cout << "Load file not found" << endl;
             return false;

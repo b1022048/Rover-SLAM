@@ -53,6 +53,18 @@ make -j12
 
 # Running 
 
+## Environment Setup (env_rover.sh)
+
+`env_rover.sh` sets up the environment variables required to run the examples (OpenCV, ONNXRuntime and CUDA library paths, and which GPU to use). Source it **before** running any example:
+
+```
+source env_rover.sh
+```
+
+Notes:
+- The paths inside this script (OpenCV, ONNXRuntime, CUDA) are specific to this machine. If you are running on a different machine, edit `env_rover.sh` to match your own installation paths.
+- `CUDA_VISIBLE_DEVICES` selects which GPU is used. Adjust this value if you want to run on a different GPU.
+
 ## Euroc-Monocluar:
 ```
 ./Examples/Monocular/mono_euroc  Vocabulary/voc_binary_tartan_8u_6.yml.gz Examples/Monocular/EuRoC.yaml /media/xiao/data3/slamdataset/euroc/V202 /media/xiao/data3/learning-slam/Rover-slam/Examples/Monocular/EuRoC_TimeStamps/V202.txt
