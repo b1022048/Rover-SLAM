@@ -1,0 +1,132 @@
+<mxfile host="app.diagrams.net" version="21.0.0" type="device">
+
+  <diagram id="overall" name="A. Overall Code Flow">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="o1" value="main()&#10;mono_euroc.cc:33" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="320" y="40" width="220" height="50" as="geometry"/></mxCell>
+        <mxCell id="o2" value="System 初始化 (System.cc:50)&#10;載入 voc + onnx，建立 Atlas/KFDB&#10;啟動 LocalMapping/LoopClosing/Viewer 執行緒" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="280" y="120" width="300" height="70" as="geometry"/></mxCell>
+        <mxCell id="o3" value="影像輸入迴圈 (mono_euroc.cc:95)&#10;cv::imread → (resize) → TrackXXX" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="300" y="220" width="260" height="60" as="geometry"/></mxCell>
+        <mxCell id="o4" value="System::TrackStereo / TrackMonocular (System.cc:283)&#10;前處理 + 模式/重置檢查 + IMU 灌入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="290" y="310" width="280" height="60" as="geometry"/></mxCell>
+        <mxCell id="o5" value="Tracking::GrabImageStereo (Tracking.cc:1539)&#10;灰階化 + 建 Frame(抽 SuperPoint 特徵)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="290" y="400" width="280" height="60" as="geometry"/></mxCell>
+        <mxCell id="o6" value="Tracking::Track (Tracking.cc:2012)&#10;狀態機 + 初始化 + 幀間追蹤 + 局部地圖追蹤 + 位姿優化" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="270" y="490" width="320" height="70" as="geometry"/></mxCell>
+        <mxCell id="o7" value="KeyFrame 插入 CreateNewKeyFrame (Tracking.cc:3940)&#10;→ LocalMapping::InsertKeyFrame (隊列)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1"><mxGeometry x="280" y="590" width="300" height="60" as="geometry"/></mxCell>
+        <mxCell id="o8" value="LocalMapping::Run (LocalMapping.cc:95)&#10;ProcessNewKF → MPCulling → CreateNewMapPoints&#10;→ SearchInNeighbors → LocalBA → KFCulling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="100" y="690" width="320" height="80" as="geometry"/></mxCell>
+        <mxCell id="o9" value="LoopClosing::Run (LoopClosing.cc:100)&#10;NewDetectCommonRegions → CorrectLoop / MergeLocal&#10;→ Pose Graph + Global BA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1"><mxGeometry x="450" y="690" width="320" height="80" as="geometry"/></mxCell>
+        <mxCell id="o10" value="Trajectory 輸出 (mono_euroc.cc:194-200)&#10;SaveTrajectoryEuRoC / SaveKeyFrameTrajectoryEuRoC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="280" y="810" width="300" height="60" as="geometry"/></mxCell>
+        <mxCell id="oe1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o1" target="o2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o2" target="o3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o3" target="o4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o4" target="o5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o5" target="o6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="o6" target="o7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=InsertKeyFrame" edge="1" parent="1" source="o7" target="o8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=InsertKeyFrame" edge="1" parent="1" source="o8" target="o9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe9" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;value=Shutdown" edge="1" parent="1" source="o6" target="o10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="oe10" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;value=下一張影像" edge="1" parent="1" source="o6" target="o3"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="frameslice" name="B. Frame-level Vertical Slice">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="f1" value="Image (cv::Mat)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="330" y="40" width="220" height="40" as="geometry"/></mxCell>
+        <mxCell id="f2" value="Frame (Frame.cc:106 建構, ExtractKeyPoints:544)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="300" y="110" width="280" height="50" as="geometry"/></mxCell>
+        <mxCell id="f3" value="Features (SuperPoint ONNX, superpoint_onnx.cc:88)&#10;mvKeys + mDescriptors(256-d)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="290" y="190" width="300" height="50" as="geometry"/></mxCell>
+        <mxCell id="f4" value="Matches (LightGlue ONNX, lightglue_onnx.cpp:213)&#10;SPmatcher.cc:530 vnMatches12" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="290" y="270" width="300" height="50" as="geometry"/></mxCell>
+        <mxCell id="f5" value="Pose (Optimizer::PoseOptimization)&#10;Tracking.cc:3276 / 3504 / 3593" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="300" y="350" width="280" height="50" as="geometry"/></mxCell>
+        <mxCell id="f6" value="KeyFrame (CreateNewKeyFrame, Tracking.cc:3940)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1"><mxGeometry x="300" y="430" width="280" height="50" as="geometry"/></mxCell>
+        <mxCell id="f7" value="MapPoint (StereoInit:2789 / CreateNewMapPoints:517)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="290" y="510" width="300" height="50" as="geometry"/></mxCell>
+        <mxCell id="f8" value="Optimized Map (LocalBA / LoopClosing Global BA)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1"><mxGeometry x="290" y="590" width="300" height="50" as="geometry"/></mxCell>
+        <mxCell id="f9" value="Trajectory (mlRelativeFramePoses:2705 → SaveTrajectoryEuRoC)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="280" y="670" width="320" height="50" as="geometry"/></mxCell>
+        <mxCell id="fe1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f1" target="f2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f2" target="f3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f3" target="f4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f4" target="f5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f5" target="f6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f6" target="f7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f7" target="f8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="f8" target="f9"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="frontend" name="C. Deep Feature Front-end">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="d1" value="Image (灰階 cv::Mat)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="320" y="40" width="220" height="40" as="geometry"/></mxCell>
+        <mxCell id="d2" value="preprocessing / NormalizeImage (SPextractor.cc:597)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="300" y="110" width="260" height="50" as="geometry"/></mxCell>
+        <mxCell id="d3" value="SuperPoint inference (ONNX Runtime)&#10;Extractor_Inference (superpoint_onnx.cc:88, Run@135)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="270" y="190" width="320" height="60" as="geometry"/></mxCell>
+        <mxCell id="d4" value="keypoint / descriptor 生成&#10;Extractor_PostProcess (superpoint_onnx.cc:165)&#10;→ mvKeys, mDescriptors (256-d float)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="270" y="280" width="320" height="60" as="geometry"/></mxCell>
+        <mxCell id="d5" value="存入 Frame (Frame::ExtractKeyPoints, Frame.cc:548)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="290" y="370" width="280" height="50" as="geometry"/></mxCell>
+        <mxCell id="d6" value="LightGlue matching (ONNX Runtime)&#10;MatchingPoints_onnx (SPmatcher.cc:457)&#10;Matcher_PreProcess → Matcher_Inference (lightglue_onnx.cpp:213)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="250" y="450" width="360" height="70" as="geometry"/></mxCell>
+        <mxCell id="d7" value="matched pairs (Matcher_PostProcess_fused → vnMatches12)&#10;SPmatcher.cc:530" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="280" y="550" width="300" height="60" as="geometry"/></mxCell>
+        <mxCell id="d8" value="pose estimation&#10;2D-3D 對應 → Optimizer::PoseOptimization (Tracking.cc:3276/3504/3593)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="270" y="640" width="320" height="60" as="geometry"/></mxCell>
+        <mxCell id="dnote" value="高階介面(取代 ORBmatcher):&#10;SearchForInitialization:681&#10;SearchByBoWSP:1524/1670&#10;SearchBySP:967/996/1050&#10;SearchByProjection1(TrackLocalMap)" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;" vertex="1" parent="1"><mxGeometry x="630" y="450" width="200" height="120" as="geometry"/></mxCell>
+        <mxCell id="de1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d1" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d2" target="d3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d3" target="d4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d4" target="d5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=兩幀特徵" edge="1" parent="1" source="d5" target="d6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d6" target="d7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="d7" target="d8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="de8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;dashed=1;" edge="1" parent="1" source="dnote" target="d6"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="statemachine" name="D. Tracking State Machine">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="s0" value="SYSTEM_NOT_READY (-1)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1"><mxGeometry x="340" y="30" width="180" height="50" as="geometry"/></mxCell>
+        <mxCell id="s1" value="NO_IMAGES_YET (0)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="350" y="110" width="160" height="50" as="geometry"/></mxCell>
+        <mxCell id="s2" value="NOT_INITIALIZED (1)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="345" y="200" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="s3" value="OK (2) 正常追蹤" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="360" y="320" width="140" height="60" as="geometry"/></mxCell>
+        <mxCell id="s4" value="RECENTLY_LOST (3)&#10;IMU 預測 / 重定位救援" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1"><mxGeometry x="600" y="320" width="180" height="60" as="geometry"/></mxCell>
+        <mxCell id="s5" value="LOST (4)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1"><mxGeometry x="620" y="450" width="140" height="50" as="geometry"/></mxCell>
+        <mxCell id="s6" value="ResetActiveMap (KF≤10) 或&#10;CreateMapInAtlas (KF&gt;10)&#10;Tracking.cc:2302/2308" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1"><mxGeometry x="320" y="450" width="240" height="60" as="geometry"/></mxCell>
+        <mxCell id="se0" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=System 就緒" edge="1" parent="1" source="s0" target="s1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=第一張影像 (:2092)" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=Init 成功 (:2140/2145)" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=追蹤成功 (:2485)" edge="1" parent="1" source="s3" target="s3"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="430" y="290"/></Array></mxGeometry></mxCell>
+        <mxCell id="se4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=局部地圖追蹤失敗 (:2486)" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=IMU/重定位成功 (:2267/2284)" edge="1" parent="1" source="s4" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=超時&gt;5s(IMU)/&gt;2s(視覺) (:2273/2287)" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=LOST 處理 (:2296)" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;value=重新初始化" edge="1" parent="1" source="s6" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="threads" name="E. Thread Interaction">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t0" value="影像 Frame (+ IMU)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="180" height="40" as="geometry"/></mxCell>
+        <mxCell id="t1" value="Tracking (主執行緒)&#10;GrabImage / Track&#10;Tracking.cc:1539 / 2012" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1"><mxGeometry x="80" y="120" width="200" height="80" as="geometry"/></mxCell>
+        <mxCell id="t2" value="LocalMapping (Run thread, System.cc:229)&#10;三角化 + LocalBA + culling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1"><mxGeometry x="450" y="120" width="240" height="80" as="geometry"/></mxCell>
+        <mxCell id="t3" value="LoopClosing (Run thread, System.cc:251)&#10;迴環 + 融合 + Global BA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1"><mxGeometry x="450" y="280" width="240" height="80" as="geometry"/></mxCell>
+        <mxCell id="t4" value="Atlas / Map / KeyFrameDatabase&#10;(共享資料，鎖 Map::mMutexMapUpdate)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1"><mxGeometry x="220" y="440" width="320" height="70" as="geometry"/></mxCell>
+        <mxCell id="t5" value="Viewer (Run thread, System.cc:272)&#10;FrameDrawer / MapDrawer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="60" y="440" width="140" height="70" as="geometry"/></mxCell>
+        <mxCell id="te0" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="t0" target="t1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=InsertKeyFrame mlNewKeyFrames (:368)" edge="1" parent="1" source="t1" target="t2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=MP 替換 / Release" edge="1" parent="1" source="t2" target="t1"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="365" y="100"/></Array></mxGeometry></mxCell>
+        <mxCell id="te3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=InsertKeyFrame mlpLoopKeyFrameQueue (:325)" edge="1" parent="1" source="t2" target="t3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=讀/寫 (mMutexMapUpdate)" edge="1" parent="1" source="t1" target="t4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=新增 KF/MP, LocalBA" edge="1" parent="1" source="t2" target="t4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=迴環矯正/融合/GBA" edge="1" parent="1" source="t3" target="t4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;value=顯示" edge="1" parent="1" source="t4" target="t5"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+</mxfile>

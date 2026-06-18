@@ -39,7 +39,7 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
 void LoadIMU(const string &strImuPath, vector<double> &vTimeStamps, vector<cv::Point3f> &vAcc, vector<cv::Point3f> &vGyro);
 
 
-int main(int argc, char **argv)//用 argc 知道邊界，用 argv 讀內容。1.	執行程式，輸入命令引數。
+int main(int argc, char **argv)//用 argc 知道邊界，用 argv 讀內容。1.	執行程式，輸入命令引數。argc是argv的長度，也就是命令引數的數量，argv是個字串陣列，存著每個命令引數的內容。
 {
     if(argc < 5)//2.	檢查命令引數是否有錯
     {
@@ -213,7 +213,7 @@ int main(int argc, char **argv)//用 argc 知道邊界，用 argv 讀內容。1.
             else if(ni>0)// 最後一幀（且不是第一幀）    
                 T = tframe-vTimestampsCam[seq][ni-1];//當前幀的時間戳記 - 前一幀的時間戳記 = 兩幀之間的時間差
 
-            if(ttrack<T)//只有一張圖（ni=0 且是最後一幀）
+            if(ttrack<T)//控制播放速度
                 usleep((T-ttrack)*1e6); // 1e6
         }
 

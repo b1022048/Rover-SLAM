@@ -311,23 +311,23 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     // Check mode change
     {
         unique_lock<mutex> lock(mMutexMode);
-        if(mbActivateLocalizationMode)
+        if(mbActivateLocalizationMode)//啟用純定位模式
         {
-            mpLocalMapper->RequestStop();
+            mpLocalMapper->RequestStop();//設定 mbStopRequested=true、mbAbortBA=true。這只是「發出停止請求」，LocalMapping 執行緒本身仍在跑迴圈，要等它自己檢查到這個請求。
 
             // Wait until Local Mapping has effectively stopped
-            while(!mpLocalMapper->isStopped())
+            while(!mpLocalMapper->isStopped())//每 1ms 檢查一次 mbStopped 是否變成 true。
             {
                 usleep(1000);
             }
 
-            mpTracker->InformOnlyTracking(true);
-            mbActivateLocalizationMode = false;
+            mpTracker->InformOnlyTracking(true);//設定 Tracking::mbOnlyTracking = true。不再插入新的 KeyFrame、不觸發 LocalMapping/LoopClosing，純粹只用現有地圖做相機定位。
+            mbActivateLocalizationMode = false;//把这个标志重置为 false，等待下一次调用 TrackStereo 时再触发。
         }
-        if(mbDeactivateLocalizationMode)
+        if(mbDeactivateLocalizationMode)//停用純定位模式
         {
-            mpTracker->InformOnlyTracking(false);
-            mpLocalMapper->Release();
+            mpTracker->InformOnlyTracking(false);//mbOnlyTracking = false，Tracking 恢復正常 SLAM 行為（會插入新 KeyFrame、更新地圖）。
+            mpLocalMapper->Release();//設定 mbStopRequested=false、mbAbortBA=false，LocalMapping 執行緒可以繼續運行。
             mbDeactivateLocalizationMode = false;
         }
     }
@@ -335,13 +335,13 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     // Check reset
     {
         unique_lock<mutex> lock(mMutexReset);
-        if(mbReset)
+        if(mbReset)//完整重置整個系統 → Tracking::Reset()
         {
             mpTracker->Reset();
             mbReset = false;
             mbResetActiveMap = false;
         }
-        else if(mbResetActiveMap)
+        else if(mbResetActiveMap)//重置當前活動地圖 → Tracking::ResetActiveMap()
         {
             mpTracker->ResetActiveMap();
             mbResetActiveMap = false;
@@ -353,7 +353,7 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
             mpTracker->GrabImuData(vImuMeas[i_imu]);
 
     // std::cout << "start GrabImageStereo" << std::endl;
-    Sophus::SE3f Tcw = mpTracker->GrabImageStereo(imLeftToFeed,imRightToFeed,timestamp,filename);
+    Sophus::SE3f Tcw = mpTracker->GrabImageStereo(imLeftToFeed,imRightToFeed,timestamp,filename);//GrabImageStereo()會呼叫Tracking::Track()
 
     // std::cout << "out grabber" << std::endl;
 

@@ -59,7 +59,7 @@ float Settings::readParameter<float>(cv::FileStorage &fSettings, const std::stri
     else
     {
         found = true;
-        return node.real();
+        return node.real();// 回傳那個節點的「實數值」← 這才是回傳值
     }
 }
 
