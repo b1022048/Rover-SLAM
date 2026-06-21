@@ -158,7 +158,10 @@ cv::Mat Pinhole::toK()
 {
     cv::Mat K = (cv::Mat_<float>(3, 3) << mvParameters[0],
                     0.f, mvParameters[2], 0.f, mvParameters[1], mvParameters[3], 0.f, 0.f, 1.f);
-    return K;
+    //fx     0     cx 
+    //0    fy     cy 
+    //0     0      1
+                    return K;
 }
 
 /**

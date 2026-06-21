@@ -549,17 +549,17 @@ void Settings::readOtherParameters(cv::FileStorage &fSettings)
 void Settings::precomputeRectificationMaps()
 {
     // Precompute rectification maps, new calibrations, ...
-    cv::Mat K1 = static_cast<Pinhole *>(calibration1_)->toK();
+    cv::Mat K1 = static_cast<Pinhole *>(calibration1_)->toK();//calibration1_ → 相機1的校正模型物件（指標）' static_cast<Pinhole*>(...) → 把它轉型成 Pinhole* ' >toK() → 呼叫剛剛你看過的那個函式，回傳 3×3 內參矩陣 K ' 結果存進 cv::Mat K1
     K1.convertTo(K1, CV_64F);
     cv::Mat K2 = static_cast<Pinhole *>(calibration2_)->toK();
     K2.convertTo(K2, CV_64F);
 
-    cv::Mat cvTlr;
-    cv::eigen2cv(Tlr_.inverse().matrix3x4(), cvTlr);
-    cv::Mat R12 = cvTlr.rowRange(0, 3).colRange(0, 3);
-    R12.convertTo(R12, CV_64F);
-    cv::Mat t12 = cvTlr.rowRange(0, 3).col(3);
-    t12.convertTo(t12, CV_64F);
+    cv::Mat cvTlr;// 宣告一個空的 OpenCV 矩陣
+    cv::eigen2cv(Tlr_.inverse().matrix3x4(), cvTlr);// 把 Sophus 位姿轉成 cv::Mat
+    cv::Mat R12 = cvTlr.rowRange(0, 3).colRange(0, 3);// 取左上 3x3 → 旋轉 R
+    R12.convertTo(R12, CV_64F);// 轉成 double 精度
+    cv::Mat t12 = cvTlr.rowRange(0, 3).col(3);// 取第4欄 → 平移 t
+    t12.convertTo(t12, CV_64F);// 轉成 double 精度
 
     cv::Mat R_r1_u1, R_r2_u2;
     cv::Mat P1, P2, Q;

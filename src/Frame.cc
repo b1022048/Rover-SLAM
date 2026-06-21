@@ -56,7 +56,7 @@ Frame::Frame(): mpcpi(NULL), mpImuPreintegrated(NULL), mpPrevFrame(NULL), mpImuP
 }
 
 
-//Copy Constructor
+//Copy Constructor 用一個現有的 Frame 複製出一個新的 Frame」（把所有成員逐一複製）
 Frame::Frame(const Frame &frame)
     :mpcpi(frame.mpcpi),mpSPvocabulary(frame.mpSPvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
      mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mK_(Converter::toMatrix3f(frame.mK)), mDistCoef(frame.mDistCoef.clone()),

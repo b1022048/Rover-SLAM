@@ -280,18 +280,19 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     Verbose::SetTh(Verbose::VERBOSITY_NORMAL);//Verbose的定義寫在system.h裡
 
 }
-
+//影像是用矩陣的方式存取，所以才用cv::Mat
 Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)//Sophus ：一個專門處理李群/李代數的 C++ 函式庫，
+//回傳型別     類別名::函式名(參數...) 回傳型別屬於Sophus函式庫
 {
     if(mSensor!=STEREO && mSensor!=IMU_STEREO)
     {
         cerr << "ERROR: you called TrackStereo but input sensor was not set to Stereo nor Stereo-Inertial." << endl;
         exit(-1);
     }
-
-    cv::Mat imLeftToFeed, imRightToFeed;
-    if(settings_ && settings_->needToRectify()){
-        cv::Mat M1l = settings_->M1l();//cv::Mat是用來存矩陣
+    //293 to 310會扯到settings.cc但我還沒看到，所以先跳過。
+    cv::Mat imLeftToFeed, imRightToFeed;//真正要餵給 Tracking 的影像，可能經過了矯正或縮放
+    if(settings_ && settings_->needToRectify()){//因為settings_是指標，所以要先確認它不是空指標才可以呼叫裡面的函式，不然有可能會報錯。setting.cc 327有寫什麼時候需要矯正影像。
+        cv::Mat M1l = settings_->M1l();//cv::Mat是用來存矩陣  ,M1=存每個像素對應的 x 座標 ,M2=存每個像素對應的 y 座標
         cv::Mat M2l = settings_->M2l();
         cv::Mat M1r = settings_->M1r();
         cv::Mat M2r = settings_->M2r();
@@ -349,14 +350,14 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     }
 
     if (mSensor == System::IMU_STEREO)
-        for(size_t i_imu = 0; i_imu < vImuMeas.size(); i_imu++)
-            mpTracker->GrabImuData(vImuMeas[i_imu]);
-
+        for(size_t i_imu = 0; i_imu < vImuMeas.size(); i_imu++)//把這批IMU資料從頭到尾走一遍
+            mpTracker->GrabImuData(vImuMeas[i_imu]);//一筆一筆交給Tracking
+      //void Tracking::GrabImuData(const IMU::Point &imuMeasurement)
     // std::cout << "start GrabImageStereo" << std::endl;
     Sophus::SE3f Tcw = mpTracker->GrabImageStereo(imLeftToFeed,imRightToFeed,timestamp,filename);//GrabImageStereo()會呼叫Tracking::Track()
-
+         //Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp, string filename)
     // std::cout << "out grabber" << std::endl;
-
+    //Sophus::SE3f（相機位姿 = 旋轉+平移）
     unique_lock<mutex> lock2(mMutexState);//return Tcw之後就會解鎖
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;

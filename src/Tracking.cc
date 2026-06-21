@@ -1540,7 +1540,7 @@ Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat 
 {
     //cout << "GrabImageStereo" << endl;
 
-    mImGray = imRectLeft;//左影像存到 mImGray
+    mImGray = imRectLeft;//左影像存到 mImGray，m只能夠訴你是某個 class 的成員，不會告訴你是哪一個 class
     cv::Mat imGrayRight = imRectRight;//右影像暫存在 imGrayRight
     mImRight = imRectRight;//另外把原始右影像存到 mImRight
 
@@ -1771,7 +1771,7 @@ Sophus::SE3f Tracking::GrabImageMonocular(const cv::Mat &im, const double &times
 void Tracking::GrabImuData(const IMU::Point &imuMeasurement)
 {
     unique_lock<mutex> lock(mMutexImuQueue);//上鎖 因為 IMU 資料和影像資料可能來自不同 thread。
-    mlQueueImuData.push_back(imuMeasurement);//只是把 IMU 資料存起來，還沒有計算。
+    mlQueueImuData.push_back(imuMeasurement);//只是把 IMU 資料存起來，還沒有計算。一串 IMU::Point 的 list 不是vector。Eigen::Vector3f = 「一個由 3 個 float 組成的向量」。
 }
 //1777~1922 PreintegrateIMU() 從 IMU queue 裡取出上一幀到當前幀之間的 IMU 資料，用中值積分算出相對運動，並同時更新「上一幀到當前幀」和「上一 keyframe 到當前幀」兩份預積分結果。
 /**
