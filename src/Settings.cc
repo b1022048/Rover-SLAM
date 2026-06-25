@@ -390,8 +390,8 @@ void Settings::readCamera2(cv::FileStorage &fSettings)
     }
     else
     {
-        cv::Mat cvTlr = readParameter<cv::Mat>(fSettings, "Stereo.T_c1_c2", found);
-        Tlr_ = Converter::toSophus(cvTlr);
+        cv::Mat cvTlr = readParameter<cv::Mat>(fSettings, "Stereo.T_c1_c2", found);//cvTlr 裝著一個 OpenCV 格式的 4×4 矩陣 [R|t; 0 0 0 1]
+        Tlr_ = Converter::toSophus(cvTlr);//OpenCV 矩陣轉成 Sophus 位姿
 
         // TODO: also search for Trl and invert if necessary
 
@@ -410,7 +410,7 @@ void Settings::readImageInfo(cv::FileStorage &fSettings)
     int originalCols = readParameter<int>(fSettings, "Camera.width", found);
     originalImSize_.width = originalCols;
     originalImSize_.height = originalRows;
-
+    //mvParameters 是長度4的向量，依序存著 [fx, fy, cx, cy]
     newImSize_ = originalImSize_;
     int newHeigh = readParameter<int>(fSettings, "Camera.newHeight", found, false);
     if (found)
@@ -418,16 +418,16 @@ void Settings::readImageInfo(cv::FileStorage &fSettings)
         bNeedToResize1_ = true;
         newImSize_.height = newHeigh;
 
-        if (!bNeedToRectify_)
+        if (!bNeedToRectify_)//只有「不需要做立體校正（rectify）」時才執行這段
         {
             // Update calibration
             float scaleRowFactor = (float)newImSize_.height / (float)originalImSize_.height;
-            calibration1_->setParameter(calibration1_->getParameter(1) * scaleRowFactor, 1);
+            calibration1_->setParameter(calibration1_->getParameter(1) * scaleRowFactor, 1);//把左相機（calibration1_）的 fy（垂直方向焦距）跟 cy（垂直方向主點座標）都乘上這個縮放比例，更新成「resize後的影像」對應的新內參值。
             calibration1_->setParameter(calibration1_->getParameter(3) * scaleRowFactor, 3);
 
             if ((sensor_ == System::STEREO || sensor_ == System::IMU_STEREO) && cameraType_ != Rectified)
             {
-                calibration2_->setParameter(calibration2_->getParameter(1) * scaleRowFactor, 1);
+                calibration2_->setParameter(calibration2_->getParameter(1) * scaleRowFactor, 1);//如果是雙眼相機（STEREO 或 IMU_STEREO），而且影像本身不是已經預先校正過的（cameraType_ != Rectified），就對右相機（calibration2_）的內參也做同樣的縮放更新。
                 calibration2_->setParameter(calibration2_->getParameter(3) * scaleRowFactor, 3);
             }
         }
@@ -564,8 +564,8 @@ void Settings::precomputeRectificationMaps()
     cv::Mat R_r1_u1, R_r2_u2;
     cv::Mat P1, P2, Q;
 
-    cv::stereoRectify(K1, camera1DistortionCoef(), K2, camera2DistortionCoef(), newImSize_,
-                        R12, t12,
+    cv::stereoRectify(K1, camera1DistortionCoef(), K2, camera2DistortionCoef(), newImSize_,// 輸入:左右內參、畸變、預期影像大小
+                        R12, t12,// 輸入:左右相機相對位姿(前面拆出來的)
                         R_r1_u1, R_r2_u2, P1, P2, Q,
                         cv::CALIB_ZERO_DISPARITY, -1, newImSize_);
     cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1.rowRange(0, 3).colRange(0, 3),

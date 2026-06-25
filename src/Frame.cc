@@ -106,14 +106,14 @@ Frame::Frame(const Frame &frame)
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, SPextractor* extractorLeft, SPextractor* extractorRight, SPVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, Frame* pPrevF, const IMU::Calib &ImuCalib)
     :mpcpi(NULL), mpSPvocabulary(voc),mpExtractorLeft(extractorLeft),mpExtractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()), mK_(Converter::toMatrix3f(K)), mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFrame*>(NULL)), mbIsSet(false), mbImuPreintegrated(false),
-     mpCamera(pCamera) ,mpCamera2(nullptr), mbHasPose(false), mbHasVelocity(false), imgLeft(imLeft), imgRight(imRight)
+     mpCamera(pCamera) ,mpCamera2(nullptr), mbHasPose(false), mbHasVelocity(false), imgLeft(imLeft), imgRight(imRight)//step 0:初始化列表
 {
     // Frame ID
     // Step 1 帧的ID 自增
     mnId=nNextId++;
 
     // Scale Level Info
-    // Step 2 计算图像金字塔的参数 
+    // Step 2 计算图像金字塔的参数  把這些提取器已經知道的設定複製一份存到Frame自己身上，方便之後別的函式用Frame的資料就能查到，不用每次都去問extractor。
 	// 获取图像金字塔的层数
     mnScaleLevels = mpExtractorLeft->GetLevels();
     // // 获得层与层之间的缩放比
@@ -138,7 +138,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
 #endif
     //cout<<imLeft.cols<<endl;
-    // Step 3 对左目右目图像提取ORB特征点, 第一个参数0-左图， 1-右图。为加速计算，同时开了两个线程计算
+    // Step 3 对左目右目图像提取ORB特征点, 第一个参数0-左图， 1-右图。为加速计算，同时开了两个线程计算  左右圖各開一個執行緒同時抽特徵點
     thread threadLeft(&Frame::ExtractKeyPoints,this,0,imLeft,0,0);
     // 对右目图像提取orb特征
     thread threadRight(&Frame::ExtractKeyPoints,this,1,imRight,0,0);
@@ -154,19 +154,19 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     // mvKeys中保存的是左图像中的特征点，这里是获取左侧图像中特征点的个数
     N = mvKeys.size();
-
+    //step 4 檢查左圖有沒有抓到特徵點。
     // 如果左图像中没有成功提取到特征点那么就返回，也意味这这一帧的图像无法使用
     if(mvKeys.empty())
         return;
 
-    // Step 4 用OpenCV的矫正函数、内参对提取到的特征点进行矫正
+    // Step 5 用OpenCV的矫正函数、内参对提取到的特征点进行矫正 去畸變
     UndistortKeyPoints();
 
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
 #endif
 
-    // Step 5 计算双目间特征点的匹配，只有匹配成功的特征点会计算其深度,深度存放在 mvDepth 
+    // Step 6 计算双目间特征点的匹配，只有匹配成功的特征点会计算其深度,深度存放在 mvDepth   雙目匹配算深度
 	// mvuRight中存储的应该是左图像中的点所匹配的在右图像中的点的横坐标（纵坐标相同）
     ComputeStereoMatches();
     //std::cout<<"s4.6"<<endl;
@@ -175,7 +175,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
 #endif
-
+    // step 7 先建立跟特徵點數量一樣大的陣列，每個位置先放NULL/false，之後追蹤成功時才會把對應的MapPoint指標填進去。
     // 初始化本帧的地图点
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
     mvbOutlier = vector<bool>(N,false);
@@ -185,6 +185,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     // This is done only for the first Frame (or after a change in the calibration)
     //  Step 5 计算去畸变后图像边界，将特征点分配到网格中。这个过程一般是在第一帧或者是相机标定参数发生变化之后进行
+    // step 8 只有第一幀才會做if(mbInitialComputations)
     if(mbInitialComputations)
     {
         // 计算去畸变后图像的边界
@@ -208,10 +209,10 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         // 特殊的初始化过程完成，标志复位
         mbInitialComputations=false;
     }
-
+    // step 9 計算基線實際長度
     // 双目相机基线长度
     mb = mbf/fx;
-
+    // step 10 速度初始化
     if(pPrevF)
     {
         if(pPrevF->HasVelocity())
@@ -221,7 +222,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     {
         mVw.setZero();
     }
-
+    //step 11：建立IMU相關的mutex、清空魚眼雙相機才會用到的欄位
     mpMutexImu = new std::mutex();
 
     //Set no stereo fisheye information
@@ -233,6 +234,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     monoLeft = -1;
     monoRight = -1;
 
+    //step 12：把特徵點分配進網格
     // Step 6 将特征点分配到图像网格中
     // 上个版本这句话放在了new 锁那个上面，放在目前这个位置更合理，因为要把一些当前模式不用的参数赋值，函数里面要用
     AssignFeaturesToGrid();
@@ -250,7 +252,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     mnId=nNextId++;
 
     // Scale Level Info
-    // Step 2 计算图像金字塔的参数 
+    // Step 2 计算图像金字塔的参数  把這些提取器已經知道的設定複製一份存到Frame自己身上，方便之後別的函式用Frame的資料就能查到，不用每次都去問extractor。
 	// 获取图像金字塔的层数
     mnScaleLevels = mpORBextractorLeft->GetLevels();
     // 获得层与层之间的缩放比

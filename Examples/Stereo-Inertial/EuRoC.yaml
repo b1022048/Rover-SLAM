@@ -52,7 +52,7 @@ Camera.fps: 10
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 1
 
-# Close/Far threshold. Baseline times.
+# Close/Far threshold. Baseline times.  !!opencv-matrix 標記讓 OpenCV 讀成矩陣 dt: f = 資料型別 float,
 Stereo.ThDepth: 60.0
 Stereo.T_c1_c2: !!opencv-matrix
   rows: 4

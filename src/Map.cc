@@ -234,16 +234,16 @@ void Map::clear()
     for (set<KeyFrame *>::iterator sit = mspKeyFrames.begin(), send = mspKeyFrames.end(); sit != send; sit++)
     {
         KeyFrame *pKF = *sit;
-        pKF->UpdateMap(static_cast<Map *>(NULL));
+        pKF->UpdateMap(static_cast<Map *>(NULL));//把每個KF的Map指標設為NULL,表示這個KF不屬於任何地圖了
         //        delete *sit;
     }
 
-    mspMapPoints.clear();
-    mspKeyFrames.clear();
-    mnMaxKFid = mnInitKFid;
-    mbImuInitialized = false;
-    mvpReferenceMapPoints.clear();
-    mvpKeyFrameOrigins.clear();
+    mspMapPoints.clear();//清空地圖點
+    mspKeyFrames.clear();//清空關鍵幀
+    mnMaxKFid = mnInitKFid;//KF id計數器重設回初始直
+    mbImuInitialized = false;//IMU初始化標誌設為false
+    mvpReferenceMapPoints.clear();//清空參考地圖點
+    mvpKeyFrameOrigins.clear();//清空關鍵幀起源紀錄
     mbIMU_BA1 = false;
     mbIMU_BA2 = false;
 }

@@ -4745,7 +4745,7 @@ void Tracking::ResetActiveMap(bool bLocMap)
             usleep(3000);
     }
 
-    Map* pMap = mpAtlas->GetCurrentMap();
+    Map* pMap = mpAtlas->GetCurrentMap();//拿到目前地圖的指標。
 
     if (!bLocMap)
     {
@@ -4765,42 +4765,49 @@ void Tracking::ResetActiveMap(bool bLocMap)
     Verbose::PrintMess("done", Verbose::VERBOSITY_NORMAL);
 
     // Clear Map (this erase MapPoints and KeyFrames)
-    mpAtlas->clearMap();
+    mpAtlas->clearMap();//清理掉目前的地圖，但只是把該 map 的 mspKeyFrames、mspMapPoints 清空，這個 Map 物件本身沒有被刪除，依然存在於 mpAtlas 的 mspMaps 集合裡，成空的地圖
 
 
     //KeyFrame::nNextId = mpAtlas->GetLastInitKFid();
     //Frame::nNextId = mnLastInitFrameId;
-    mnLastInitFrameId = Frame::nNextId;
+    mnLastInitFrameId = Frame::nNextId;// Frame::nNextId（Frame.h:282）：一個 static 成員變數，代表下一个要被建立的 Frame 會拿到的的 ID 。 mnLastInitFrameId（Tracking.h:336）：Tracking 的成員變數，記錄「目前這張地圖是從哪個 frame id 開始初始化的」
     //mnLastRelocFrameId = mnLastInitFrameId;
     mState = NO_IMAGES_YET; //NOT_INITIALIZED;
 
     mbReadyToInitializate = false;
 
-    list<bool> lbLost;
+    /**
+    * @brief 確保 index 是一個夠安全、夠早的起點，涵蓋到目前所有還存在地圖的歷史範圍，這樣下面接著要逐筆走訪 mlbLost並重新標記哪些要保留、哪些要強制改成lost的時候，才不會漏掉任何屬於現存地圖的紀錄。index 就是手動模擬出來的「目前對應到第幾個frame」的計數器：
+    * mlbLost (舊的)  →  逐筆讀取  →  配上 index (座標)  →  判斷  →  寫進 lbLost (新的)
+    */
+    list<bool> lbLost;//記錄「這一幀當時追蹤是不是處於 LOST 狀態」 是這次迴圈新建立的 list<bool>，根據 index 跟 mnInitialFrameId 的比較結果，逐筆decide：
     // lbLost.reserve(mlbLost.size());
-    unsigned int index = mnFirstFrameId;
+    unsigned int index = mnFirstFrameId;//index 是目前對應到真實世界的第幾個frame的計數器。先初始化成 mnFirstFrameId——這是整個系統第一次成功初始化地圖時，那一幀的id
     cout << "mnFirstFrameId = " << mnFirstFrameId << endl;
-    for(Map* pMap : mpAtlas->GetAllMaps())
+    for(Map* pMap : mpAtlas->GetAllMaps())// Atlas 裡目前所有存在的地圖（包括剛被清空的目前地圖、跟其他可能還保留著的舊地圖）：
     {
-        if(pMap->GetAllKeyFrames().size() > 0)
+        if(pMap->GetAllKeyFrames().size() > 0)//目前地圖是空的，靠size判斷
         {
-            if(index > pMap->GetLowerKFID())
-                index = pMap->GetLowerKFID();
+            if(index > pMap->GetLowerKFID())// 如果這張地圖的最小KF id，比目前記錄的index還小
+                index = pMap->GetLowerKFID();// 就把index更新成這個更小的值
         }
     }
 
     //cout << "First Frame id: " << index << endl;
-    int num_lost = 0;
+    int num_lost = 0;//用來告訴我們這次 reset 把多少幀標記成 lost。
     cout << "mnInitialFrameId = " << mnInitialFrameId << endl;
+    //   |  A  |  B  |  C  |
+    //   ↑                 ↑
+    // begin()           end()
 
-    for(list<bool>::iterator ilbL = mlbLost.begin(); ilbL != mlbLost.end(); ilbL++)
+    for(list<bool>::iterator ilbL = mlbLost.begin(); ilbL != mlbLost.end(); ilbL++)//mlbLost 就是「每一幀的追蹤成功/失敗標記表」
     {
-        if(index < mnInitialFrameId)
-            lbLost.push_back(*ilbL);
+        if(index < mnInitialFrameId)//逐一決定 mlbLost 裡每一筆舊紀錄，要原樣保留，還是強制改成「lost」。mnInitialFrameId：標記「目前這張地圖，是從哪個frame id開始計算」的分界點，每次地圖被重置或新建時更新。
+            lbLost.push_back(*ilbL);// 保留原本的值  
         else
         {
-            lbLost.push_back(true);
-            num_lost += 1;
+            lbLost.push_back(true);// 強制改成「lost」
+            num_lost += 1;//順便計數
         }
 
         index++;
@@ -4809,16 +4816,16 @@ void Tracking::ResetActiveMap(bool bLocMap)
 
     mlbLost = lbLost;
 
-    mnInitialFrameId = mCurrentFrame.mnId;
+    mnInitialFrameId = mCurrentFrame.mnId;//記錄「下一張新地圖將會從哪個 frame id 開始」，右邊應該要+1 ?
     mnLastRelocFrameId = mCurrentFrame.mnId;
 
-    mCurrentFrame = Frame();
-    mLastFrame = Frame();
+    mCurrentFrame = Frame();//重設成空的 Frame 物件
+    mLastFrame = Frame();//重設成空的 Frame 物件
     mpReferenceKF = static_cast<KeyFrame*>(NULL);
     mpLastKeyFrame = static_cast<KeyFrame*>(NULL);
-    mvIniMatches.clear();
+    mvIniMatches.clear();//清空「初始化用的特徵點匹配暫存」
 
-    mbVelocity = false;
+    mbVelocity = false;// false——因為地圖斷掉了，上一刻算出來的相機運動速度已經不可靠，下一幀不能再拿來當初始猜測值。
 
     if(mpViewer)
         mpViewer->Release();

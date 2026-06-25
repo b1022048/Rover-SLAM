@@ -1251,13 +1251,13 @@ void LocalMapping::Release()
 {
     unique_lock<mutex> lock(mMutexStop);
     unique_lock<mutex> lock2(mMutexFinish);
-    if(mbFinished)
+    if(mbFinished)//如果已經要關閉了,什麼都不做
         return;
     mbStopped = false;
     mbStopRequested = false;
     for(list<KeyFrame*>::iterator lit = mlNewKeyFrames.begin(), lend=mlNewKeyFrames.end(); lit!=lend; lit++)
-        delete *lit;
-    mlNewKeyFrames.clear();
+        delete *lit;//逐一刪除每個 KeyFrame 物件 。list 裡裝的是 KeyFrame*(指標),指向 heap 上 new 出來的 KeyFrame 物件。
+    mlNewKeyFrames.clear();//清空佇列
 
     cout << "Local Mapping RELEASE" << endl;
 }

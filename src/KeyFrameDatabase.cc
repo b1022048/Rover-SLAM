@@ -87,26 +87,28 @@ void KeyFrameDatabase::erase(KeyFrame *pKF)
 // 清空关键帧数据库
 void KeyFrameDatabase::clear()
 {
-    mvInvertedFile.clear();
-    mvInvertedFile.resize(mpVoc->size());
+    mvInvertedFile.clear();//清空
+    mvInvertedFile.resize(mpVoc->size());//重新依字典大小，建立全新的空格子
 }
 
-void KeyFrameDatabase::clearMap(Map *pMap)
+void KeyFrameDatabase::clearMap(Map *pMap)//走訪整個倒排索引表的每一格，把屬於 pMap 的KeyFrame全部從裡面移除。
 {
     unique_lock<mutex> lock(mMutex);
-
+    //mvInvertedFile 是一個 vector，每個位置對應詞袋(BoW)裡的一個視覺單字
+    //每個位置存的 list<KeyFrame*>，裝的是「所有包含這個視覺單字的KeyFrame」
+    //KeyFrame *：list裡裝的元素型別，是指向 KeyFrame 物件的指標
     // Erase elements in the Inverse File for the entry
-    for (std::vector<list<KeyFrame *>>::iterator vit = mvInvertedFile.begin(), vend = mvInvertedFile.end(); vit != vend; vit++)
+    for (std::vector<list<KeyFrame *>>::iterator vit = mvInvertedFile.begin(), vend = mvInvertedFile.end(); vit != vend; vit++)//走訪 mvInvertedFile（每個視覺單字對應一格），逐一取出每格存的list（lKFs，用參照綁定，可以直接修改原資料）。
     {
         // List of keyframes that share the word
         list<KeyFrame *> &lKFs = *vit;
 
-        for (list<KeyFrame *>::iterator lit = lKFs.begin(), lend = lKFs.end(); lit != lend;)
+        for (list<KeyFrame *>::iterator lit = lKFs.begin(), lend = lKFs.end(); lit != lend;)//走訪這一格list裡的每個KeyFrame指標，逐一判斷：
         {
             KeyFrame *pKFi = *lit;
-            if (pMap == pKFi->GetMap())
+            if (pMap == pKFi->GetMap())//這個KeyFrame屬於要清掉的那張地圖
             {
-                lit = lKFs.erase(lit);
+                lit = lKFs.erase(lit);//把它從list裡刪掉，並把 lit 移到下一個有效位置（erase會回傳下一個元素的迭代器）
                 // Dont delete the KF because the class Map clean all the KF when it is destroyed
             }
             else
