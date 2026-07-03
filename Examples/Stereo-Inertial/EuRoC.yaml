@@ -19,7 +19,7 @@ File.version: "1.0"
 
 Camera.type: "PinHole"
 
-# Camera calibration and distortion parameters (OpenCV) 
+# Camera calibration and distortion parameters (OpenCV) pixel units
 Camera1.fx: 458.654
 Camera1.fy: 457.296
 Camera1.cx: 367.215

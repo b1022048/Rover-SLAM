@@ -41,7 +41,7 @@ namespace ORB_SLAM3 {
         /*
          * Enum for the different camera types implemented
          */
-        enum CameraType {
+        enum CameraType {//enum：列舉型別，把一組有名子的整數常數組成一個型別，方便程式碼閱讀與維護，其實寫0,1,2只是方便我們去閱讀，enum預設本來就是從0開始自動遞增
             PinHole = 0,
             Rectified = 1,
             KannalaBrandt = 2

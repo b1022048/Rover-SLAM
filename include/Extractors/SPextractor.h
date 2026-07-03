@@ -73,7 +73,7 @@ public:
       std::vector<cv::KeyPoint>& keypoints,
       cv::Mat& descriptors);
 
-    int inline GetLevels(){
+    int inline GetLevels(){//inline是C++的關鍵字，告訴編譯器：「這個函式很短，請直接把它的程式碼複製貼到每個呼叫的地方，不要真的跳去呼叫它」。所以直接是mnScaleLevels = nlevels; 
         return nlevels;}
 
     float inline GetScaleFactor(){

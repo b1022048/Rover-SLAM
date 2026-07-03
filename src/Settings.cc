@@ -564,12 +564,12 @@ void Settings::precomputeRectificationMaps()
     cv::Mat R_r1_u1, R_r2_u2;
     cv::Mat P1, P2, Q;
 
-    cv::stereoRectify(K1, camera1DistortionCoef(), K2, camera2DistortionCoef(), newImSize_,// 輸入:左右內參、畸變、預期影像大小
+    cv::stereoRectify(K1, camera1DistortionCoef(), K2, camera2DistortionCoef(), newImSize_,// 輸入:左右內參、camera1/2DistortionCoef()畸變、預期影像大小   這個function的作用是對齊左右影像的y軸(讓對應點同一行)，共面
                         R12, t12,// 輸入:左右相機相對位姿(前面拆出來的)
-                        R_r1_u1, R_r2_u2, P1, P2, Q,
+                        R_r1_u1, R_r2_u2, P1, P2, Q,//輸出，Q不會用到，R_r1_u1、R_r2_u2：左/右相機各自需要旋轉多少角度，才能讓兩台相機的光軸平行，P1、P2：校正後的投影矩陣(新的等效內參)，投影矩陣為K[R|t]，因為旋轉矩陣已經被拆出來了，所以P1、P2的前3x3就是新的等效內參K，p=[K|t] 3x4
                         cv::CALIB_ZERO_DISPARITY, -1, newImSize_);
-    cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1.rowRange(0, 3).colRange(0, 3),
-                                newImSize_, CV_32F, M1l_, M2l_);
+    cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1.rowRange(0, 3).colRange(0, 3),//把stereoRectify算出來的「要做什麼變換」，預先計算成一張「像素查找表」，方便後續每一幀影像快速套用。
+                                newImSize_, CV_32F, M1l_, M2l_);//M儲存了「校正後影像的每一個像素(x,y)，對應到原始影像的哪個位置」
     cv::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2, P2.rowRange(0, 3).colRange(0, 3),
                                 newImSize_, CV_32F, M1r_, M2r_);
 

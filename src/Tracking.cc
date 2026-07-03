@@ -2012,7 +2012,7 @@ void Tracking::ResetFrameIMU()
 void Tracking::Track()
 {
     //cout<<"track()"<<endl;
-    mi++;
+    mi++;//每處理一幀就+1,用來記錄「目前處理到第幾幀」
     if (bStepByStep)
     {
         std::cout << "Tracking: Waiting to the next step" << std::endl;
@@ -2096,7 +2096,7 @@ void Tracking::Track()
 
     mLastProcessedState=mState;//记录当前状态
     // Step 4 IMU模式且没有创建地图的情况下对IMU数据进行预积分
-    if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && !mbCreatedMap)
+    if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && !mbCreatedMap)//CreateNewMap() mbCreatedMap 設為 true，這裡會檢查是因為CreateNewMap()會重置Frame()跟IMU資料序列
     {
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_StartPreIMU = std::chrono::steady_clock::now();

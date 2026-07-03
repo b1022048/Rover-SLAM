@@ -90,10 +90,10 @@ SPextractor::SPextractor(int _nfeatures, float _scaleFactor, int _nlevels,
     if(mModelstr == "onnx")
     {   Configuration cfg;
         cfg.device = "cuda";
-        cfg.extractorPath = "onnxmodel/superpoint.onnx";
+        cfg.extractorPath = "onnxmodel/superpoint.onnx"; // 本機檔案路徑
         cfg.extractorType = "superpoint";
         featureExtractor = new SuperPointOnnxRunner();
-        featureExtractor->InitOrtEnv(cfg);
+        featureExtractor->InitOrtEnv(cfg); // 載入到本機
 
     }
     // else{
@@ -112,8 +112,8 @@ SPextractor::SPextractor(int _nfeatures, float _scaleFactor, int _nlevels,
     mvLevelSigma2[0]=1.0f;
     for(int i=1; i<nlevels; i++)
     {
-        mvScaleFactor[i]=mvScaleFactor[i-1]*scaleFactor;
-        mvLevelSigma2[i]=mvScaleFactor[i]*mvScaleFactor[i];
+        mvScaleFactor[i]=mvScaleFactor[i-1]*scaleFactor;//Frame 物件
+        mvLevelSigma2[i]=mvScaleFactor[i]*mvScaleFactor[i];//Frame 物件
     }
     for(int i = 0; i < mvLevelSigma2.size(); i++)
     {
@@ -124,8 +124,8 @@ SPextractor::SPextractor(int _nfeatures, float _scaleFactor, int _nlevels,
     mvInvLevelSigma2.resize(nlevels);
     for(int i=0; i<nlevels; i++)
     {
-        mvInvScaleFactor[i]=1.0f/mvScaleFactor[i];
-        mvInvLevelSigma2[i]=1.0f/mvLevelSigma2[i];
+        mvInvScaleFactor[i]=1.0f/mvScaleFactor[i];//Frame 物件
+        mvInvLevelSigma2[i]=1.0f/mvLevelSigma2[i];//Frame 物件
     }
 
     mvImagePyramid.resize(nlevels);
@@ -514,25 +514,25 @@ SPextractor::SPextractor(int _nfeatures, float _scaleFactor, int _nlevels,
 
 
 int SPextractor::operator()( InputArray _image,  vector<KeyPoint>& _keypoints,
-                      cv::Mat& _descriptors)
+                      cv::Mat& _descriptors)//InputArray——這是OpenCV設計的一個萬用輸入型別，可以接受cv::Mat、vector、cuda::GpuMat等各種不同型別的影像。
 {
     if(_image.empty())
         return 0;
 
-    Mat image = _image.getMat();
+    Mat image = _image.getMat();//轉換成Mat型別
     
     //cout << typeToString(image.type());
-    assert(image.type() == CV_8UC1 );
+    assert(image.type() == CV_8UC1 );//確認影像格式為 8-bit、1 channel（灰階）如果不是assert會直接讓程式崩潰報錯
 
     Mat descriptors;
     //两种模式，一种单层图像提取特征，一种多层金字塔提取特征
-    int res = -1;
+    int res = -1;//如果沒有進入下面的ifelse 則返回-1，表示沒有提取到特徵點
     if (nlevels == 1) 
-        res = ExtractSingleLayer(image, _keypoints, _descriptors);
+        res = ExtractSingleLayer(image, _keypoints, _descriptors);//只在原始解析度提取特徵點
     else{
-        ComputePyramid(image);
-        res = ExtractMultiLayers(image, _keypoints, descriptors);
-    }
+        ComputePyramid(image);//先建金字塔
+        res = ExtractMultiLayers(image, _keypoints, descriptors);//在每一層分別提取特徵點，ExtractMultiLayers()裡的主要功能已被註解，要用的化目前最快是要把yaml裡的nlevels改成1，然後用ExtractSingleLayer()，這樣就只會在原始解析度提取特徵點。
+    }//注意! 這裡宣告了一個局部變數descriptors，而不是直接用_descriptors（輸出參數）。描述子先存到這個局部變數，ExtractMultiLayers內部再決定怎麼複製出去。
     // Pre-compute the scale pyramid
 
     // ComputePyramid(image);
@@ -589,15 +589,14 @@ int SPextractor::operator()( InputArray _image,  vector<KeyPoint>& _keypoints,
     return res;
 }
 
-int SPextractor::ExtractSingleLayer(const cv::Mat &image, std::vector<cv::KeyPoint>& vKeyPoints, cv::Mat &Descriptors)
-{
-    if(mModelstr == "onnx"){
-        Configuration cfg;
+int SPextractor::ExtractSingleLayer(const cv::Mat &image, std::vector<cv::KeyPoint>& vKeyPoints, cv::Mat &Descriptors){ //提取單層影像的特徵，用SuperPoint模型
+    if(mModelstr == "onnx"){//mModelstr 在SPextractor.h:101直接寫是onnx
+        Configuration cfg;//在Configuration.h裡面
         cv::Mat image_copy = image.clone();
-        cv::Mat inputImage = NormalizeImage(image_copy);
-        featureExtractor->lastmatch = lastmatchnum;
-        featureExtractor->Extractor_Inference(cfg , inputImage);
-        featureExtractor->Extractor_PostProcess(cfg , std::move(featureExtractor->extractor_outputtensors[0]),vKeyPoints,Descriptors);
+        cv::Mat inputImage = NormalizeImage(image_copy);//把像素值從[0, 255]正規化到[0.0, 1.0]，可能是神經網路的輸入要求浮點數 
+        featureExtractor->lastmatch = lastmatchnum;//tracling.3466也有，但是備註解掉了       跟閥值有關    superpoint_onnx.cc:209，threshold = mean - 0.6*sqrt(variance) - 0.02 / (1.0 + exp(-0.02*(lastmatch-270)));，lastmatch讓SuperPoint的偵測閾值根據上一幀的匹配品質自我調整，初始值為0。LocalMapping.cc:951   mpExtractorLeft->lastmatchnum = matchmean  ← 寫進SPextractor
+        featureExtractor->Extractor_Inference(cfg , inputImage);//正規化後的影像丟進ONNX Runtime跑SuperPoint
+        featureExtractor->Extractor_PostProcess(cfg , std::move(featureExtractor->extractor_outputtensors[0]),vKeyPoints,Descriptors);//把神經網路輸出的原始tensor解析成cv::KeyPoint座標和描述子矩陣，填進vKeyPoints和Descriptors。
     }
     else{
         // if(!mModel->infer(image,  vKeyPoints, Descriptors, nfeatures))
@@ -618,7 +617,7 @@ int SPextractor::ExtractSingleLayer(const cv::Mat &image, std::vector<cv::KeyPoi
 
 int SPextractor::ExtractMultiLayers(const cv::Mat &image, std::vector<cv::KeyPoint>& vKeyPoints, cv::Mat &Descriptors)
 {
-    ComputePyramid(image);
+    ComputePyramid(image);//先建金字塔
     int nKeyPoints = 0;
     vector<vector<cv::KeyPoint>> allKeypoints(nlevels);
     vector<cv::Mat> allDescriptors(nlevels);
@@ -642,8 +641,8 @@ int SPextractor::ExtractMultiLayers(const cv::Mat &image, std::vector<cv::KeyPoi
     {
         for(auto keypoint : allKeypoints[level])
         {
-            keypoint.octave = level;
-            keypoint.pt *= mvScaleFactor[level];
+            keypoint.octave = level;// 記錄這個點來自第幾層
+            keypoint.pt *= mvScaleFactor[level];// 座標還原回原始解析度
             vKeyPoints.emplace_back(keypoint);
         }
     }
@@ -686,23 +685,23 @@ int SPextractor::ExtractMultiLayers(const cv::Mat &image, std::vector<cv::KeyPoi
 void SPextractor::ComputePyramid(cv::Mat image)
 {
     std::cout<<" compute pyramid !"<<std::endl;
-    for (int level = 0; level < nlevels; ++level)
+    for (int level = 0; level < nlevels; ++level)//stereo imu euroc的nLevels=1
     {
-        float scale = mvInvScaleFactor[level];
+        float scale = mvInvScaleFactor[level];//在建立Frame物件時就已經計算好了，這裡直接取出來用
         Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
         Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
         Mat temp(wholeSize, image.type()), masktemp;
         mvImagePyramid[level] = temp(Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height));
 
         // Compute the resized image
-        if( level != 0 )
+        if( level != 0 )//多層
         {
             resize(mvImagePyramid[level-1], mvImagePyramid[level], sz, 0, 0, INTER_LINEAR);
 
             copyMakeBorder(mvImagePyramid[level], temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
                            BORDER_REFLECT_101+BORDER_ISOLATED);            
         }
-        else
+        else//單層
         {
             copyMakeBorder(image, temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
                            BORDER_REFLECT_101);            
