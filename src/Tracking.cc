@@ -1784,7 +1784,7 @@ void Tracking::PreintegrateIMU()
     if(!mCurrentFrame.mpPrevFrame)
     {
         Verbose::PrintMess("non prev frame ", Verbose::VERBOSITY_NORMAL);
-        mCurrentFrame.setIntegrated();
+        mCurrentFrame.setIntegrated();//mbImuPreintegrated = true;
         return;//如果當前 frame 沒有上一幀，就沒辦法做「兩幀之間」的 IMU 積分，所以直接標記已處理然後返回。
     }
 
@@ -2739,23 +2739,23 @@ void Tracking::Track()
 void Tracking::StereoInitialization()
 {
     // 初始化要求当前帧的特征点超过500
-    if(mCurrentFrame.N>500)
+    if(mCurrentFrame.N>500)//Frame.cc L156
     {
         if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
         {
-            if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated)
+            if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated)//檢查IMU資料是否已經準備好了
             {
                 cout << "not IMU meas" << endl;
                 return;
             }
 
             if (!mFastInit && (mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA).norm()<0.5)
-            {
+            {//mFastInit 是一個可以跳過這道檢查的開關(include/Tracking.h:175,由 yaml 的 IMU.fastInit 設定,Tracking.cc:1463),打開的話會犧牲穩定性換取更快初始化(見 Tracking.cc:1460 的行內註解)。
                 cout << "not enough acceleration" << endl;
                 return;
             }
 
-            if(mpImuPreintegratedFromLastKF)
+            if(mpImuPreintegratedFromLastKF)//重置從上個關鍵幀開始累積的預積分器
                 delete mpImuPreintegratedFromLastKF;
 
             mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);
@@ -2766,14 +2766,14 @@ void Tracking::StereoInitialization()
         // 设定初始位姿为单位旋转，0平移，imu模式下设置的是相机位姿
         if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
         {
-            Eigen::Matrix3f Rwb0 = mCurrentFrame.mImuCalib.mTcb.rotationMatrix();
-            Eigen::Vector3f twb0 = mCurrentFrame.mImuCalib.mTcb.translation();
+            Eigen::Matrix3f Rwb0 = mCurrentFrame.mImuCalib.mTcb.rotationMatrix();//算的是 mTcb(camera→body)。數值事先從設定檔讀取在校正後的值
+            Eigen::Vector3f twb0 = mCurrentFrame.mImuCalib.mTcb.translation();//算的是 mTcb(camera→body)。數值事先從設定檔讀取在校正後的值
             Eigen::Vector3f Vwb0;
             Vwb0.setZero();
             mCurrentFrame.SetImuPoseVelocity(Rwb0, twb0, Vwb0);
         }
         else
-            mCurrentFrame.SetPose(Sophus::SE3f());
+            mCurrentFrame.SetPose(Sophus::SE3f());//把第一幀的相機姿態設成單位變換(identity),當作整個地圖的世界座標原點。
 
         // Create KeyFrame
         // 将当前帧构造为初始关键帧
