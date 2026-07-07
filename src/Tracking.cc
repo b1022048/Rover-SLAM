@@ -1784,12 +1784,12 @@ void Tracking::PreintegrateIMU()
     if(!mCurrentFrame.mpPrevFrame)
     {
         Verbose::PrintMess("non prev frame ", Verbose::VERBOSITY_NORMAL);
-        mCurrentFrame.setIntegrated();//mbImuPreintegrated = true;
+        mCurrentFrame.setIntegrated();//mbImuPreintegrated = true; 這個意思為 這一幀的預積分處理流程已經結束」，而不是預積分成功算出了結果
         return;//如果當前 frame 沒有上一幀，就沒辦法做「兩幀之間」的 IMU 積分，所以直接標記已處理然後返回。
     }
 
     mvImuFromLastFrame.clear();
-    mvImuFromLastFrame.reserve(mlQueueImuData.size());//mlQueueImuData 是前面 GrabImuData() 塞進來的 IMU queue。
+    mvImuFromLastFrame.reserve(mlQueueImuData.size());//mlQueueImuData 是前面 GrabImuData() 塞進來的 IMU queue。這個佇列是留超過上一幀的 IMU 資料到目前感測器最新的資料
     // 没有imu数据,不进行预积分
     if(mlQueueImuData.size() == 0)
     {
@@ -1798,7 +1798,7 @@ void Tracking::PreintegrateIMU()
         return;
     }
 
-    while(true)//從 queue 裡挑出上一幀到當前幀之間的 IMU
+    while(true)//從 queue 裡挑出上一幀到當前幀之間的 IMU 在1827行有break 這是一個無限迴圈
     {
         // 数据还没有时,会等待一段时间,直到mlQueueImuData中有imu数据.一开始不需要等待
         bool bSleep = false;
@@ -1810,14 +1810,14 @@ void Tracking::PreintegrateIMU()
                 IMU::Point* m = &mlQueueImuData.front();
                 cout.precision(17);
                 // imu起始数据会比当前帧的前一帧时间戳早,如果相差0.001则舍弃这个imu数据
-                if(m->t<mCurrentFrame.mpPrevFrame->mTimeStamp-mImuPer)//如果 IMU 太早，比上一幀時間還早太多，就丟掉。
+                if(m->t<mCurrentFrame.mpPrevFrame->mTimeStamp-mImuPer)//如果 IMU 太早，比上一幀時間還早太多，就丟掉。mImuPer為IMU 與影像幀時間戳比對時的「容忍間隔」，固定寫死為 0.001 秒（1 毫秒）
                 {
                     mlQueueImuData.pop_front();
                 }
                 // 同样最后一个的imu数据时间戳也不能理当前帧时间间隔多余0.001
                 else if(m->t<mCurrentFrame.mTimeStamp-mImuPer)//如果 IMU 在上一幀和當前幀之間，就收進 mvImuFromLastFrame。
                 {
-                    mvImuFromLastFrame.push_back(*m);
+                    mvImuFromLastFrame.push_back(*m);//*m 是把值複製進去 push_back(*m) 是拷貝一份存進 vector。所以之後 1821 行 pop_front() 把原始那筆從 queue 移掉，也不影響已經複製進 mvImuFromLastFrame 的內容。
                     mlQueueImuData.pop_front();
                 }
                 else//如果 IMU 已經接近/超過當前幀時間，也收進來一筆，然後停止。這樣做是為了積分到當前影像時間點附近。
@@ -1861,7 +1861,7 @@ void Tracking::PreintegrateIMU()
         float tstep;
         Eigen::Vector3f acc, angVel;//這一小段時間的平均加速度、平均角速度、時間間隔。
         // 第一帧数据但不是最后两帧,imu总帧数大于2
-        if((i==0) && (i<(n-1)))//第一段 IMU：因為第一筆 IMU 不一定剛好等於上一幀影像時間，所以要做時間補償。
+        if((i==0) && (i<(n-1)))//第一段，且後面還有別段 第一段 IMU：因為第一筆 IMU 不一定剛好等於上一幀影像時間，所以要做時間補償。
         {
             // 获取相邻两段imu的时间间隔
             float tab = mvImuFromLastFrame[i+1].t-mvImuFromLastFrame[i].t;
@@ -1872,13 +1872,30 @@ void Tracking::PreintegrateIMU()
             // 有了这个改变量将其加到a0上之后就可以表示上一帧时的加速度了。其中a0 - (a1-a0)*(tini/tab) 为上一帧时刻的加速度再加上a1 之后除以2就为这段时间的加速度平均值
             // 其中tstep表示a1到上一帧的时间间隔，a0 - (a1-a0)*(tini/tab)这个式子中tini可以是正也可以是负表示时间上的先后，(a1-a0)也是一样，多种情况下这个式子依然成立
             acc = (mvImuFromLastFrame[i].a+mvImuFromLastFrame[i+1].a-
-                    (mvImuFromLastFrame[i+1].a-mvImuFromLastFrame[i].a)*(tini/tab))*0.5f;
+                    (mvImuFromLastFrame[i+1].a-mvImuFromLastFrame[i].a)*(tini/tab))*0.5f;//斜率的意義就是「每經過 1 秒，a 改變多少」。所以：走 Δt 秒，a 的變化量 = 斜率 × Δt
             // 计算过程类似加速度
             angVel = (mvImuFromLastFrame[i].w+mvImuFromLastFrame[i+1].w-
                     (mvImuFromLastFrame[i+1].w-mvImuFromLastFrame[i].w)*(tini/tab))*0.5f;
             tstep = mvImuFromLastFrame[i+1].t-mCurrentFrame.mpPrevFrame->mTimeStamp;
+            /*
+            時間軸
+
+            時間 ──────────────────────────────────────────▶
+
+                T_(上一幀)    t0(IMU0)                    t1(IMU1)
+                │             │                            │
+                ●─────────────○────────────────────────────○
+                │             a0（實測）                    a1（實測）
+                │             │                            │
+                ├──── tini ───┤                                 tini = t0 − T_   (1869 行)
+                │             ├──────────── tab ───────────┤    tab  = t1 − t0   (1867 行)
+                ├───────────────── tstep ──────────────────┤    tstep = t1 − T_  (1879 行)
+                ▲
+                └─ 這裡是積分起點，但沒有 IMU 讀值（●），要用 a0、a1 內插補出來
+    
+            */
         }
-        else if(i<(n-1))//中間IMU：正常取兩筆 IMU 的平均：
+        else if(i<(n-1))// 中間段 中間IMU：正常取兩筆 IMU 的平均：
         {
             // 中间的数据不存在帧的干扰，正常计算
             acc = (mvImuFromLastFrame[i].a+mvImuFromLastFrame[i+1].a)*0.5f;
@@ -1886,18 +1903,36 @@ void Tracking::PreintegrateIMU()
             tstep = mvImuFromLastFrame[i+1].t-mvImuFromLastFrame[i].t;
         }
         // 直到倒数第二个imu时刻时，计算过程跟第一时刻类似，都需要考虑帧与imu时刻的关系
-        else if((i>0) && (i==(n-1)))//最後一段 IMU：因為最後一筆 IMU 不一定剛好等於當前影像時間，所以也要補償。
+        else if((i>0) && (i==(n-1)))//最後一段，且前面還有別段 最後一段 IMU：因為最後一筆 IMU 不一定剛好等於當前影像時間，所以也要補償。
         {
-            float tab = mvImuFromLastFrame[i+1].t-mvImuFromLastFrame[i].t;
-            float tend = mvImuFromLastFrame[i+1].t-mCurrentFrame.mTimeStamp;
+            float tab = mvImuFromLastFrame[i+1].t-mvImuFromLastFrame[i].t;// 最後兩筆 IMU 的間隔 中間夾者當前幀
+            float tend = mvImuFromLastFrame[i+1].t-mCurrentFrame.mTimeStamp;//超過當前幀的那筆總共超出多少
             acc = (mvImuFromLastFrame[i].a+mvImuFromLastFrame[i+1].a-
-                    (mvImuFromLastFrame[i+1].a-mvImuFromLastFrame[i].a)*(tend/tab))*0.5f;
+                    (mvImuFromLastFrame[i+1].a-mvImuFromLastFrame[i].a)*(tend/tab))*0.5f;// 用兩筆線性內插出「當前幀時刻」的加速度
             angVel = (mvImuFromLastFrame[i].w+mvImuFromLastFrame[i+1].w-
                     (mvImuFromLastFrame[i+1].w-mvImuFromLastFrame[i].w)*(tend/tab))*0.5f;
-            tstep = mCurrentFrame.mTimeStamp-mvImuFromLastFrame[i].t;
+            tstep = mCurrentFrame.mTimeStamp-mvImuFromLastFrame[i].t;// 只積分到當前幀時間，不積到 IMU 那筆
+            /*
+            時間軸
+
+            時間 ──────────────────────────────────────────▶
+
+                t_i (IMU[n-1])              _T(當前幀)      t_i+1 (跨幀那筆)
+                │                           │               │
+                ○───────────────────────────●───────────────○
+                a_i（實測）                  ◎               a_i+1（實測）
+                │                           │               │
+                │                           ├──── tend ─────┤   tend  = t_i+1 − _T   (1909 行)
+                ├──────────────────── tab ──────────────────┤   tab   = t_i+1 − t_i  (1908 行)
+                ├──────── tstep ────────────┤                   tstep = _T − t_i     (1914 行)
+                                            ▲
+                                            └─ 積分終點在這裡，但這一刻沒有 IMU 讀值（●），
+                                            要用 a_i、a_i+1 內插補出 ◎
+
+            */
         }
          // 就两个数据时使用第一个时刻的，这种情况应该没有吧，，回头应该试试看
-        else if((i==0) && (i==(n-1)))//只有兩筆 IMU 的特殊情況：直接用第一筆的加速度和角速度。
+        else if((i==0) && (i==(n-1)))// 這一段既是第一段也是最後一段 。只有兩筆 IMU 的特殊情況：直接用第一筆的加速度和角速度。
         {
             acc = mvImuFromLastFrame[i].a;
             angVel = mvImuFromLastFrame[i].w;

@@ -60,8 +60,12 @@ settings->camera1()` 也就是 `calibration1_`。而 `calibration1_` 的參數 0
 
 ### avgA
 `IMU::Preintegrated` 的成員（`include/ImuTypes.h:221`），該次預積分區間內加速度計讀數的加權平均，
-在 `IntegrateNewMeasurement` 累加更新（`src/ImuTypes.cc:271`：
+在 `IntegrateNewMeasurement` 累加更新（`src/ImuTypes.cc:285`：
 `avgA = (dT*avgA + dR*acc*dt)/(dT+dt)`）。
+公式＝時間加權平均的遞推寫法（分子 `dT*avgA`＝把舊平均還原成舊總和；此刻 dT 尚未 += dt，恰為舊總時間）。
+乘 `dR`（此刻＝ΔR_{i,j-1}，尚未更新）是把各筆讀值翻到共同座標系（段初機體系）再平均——
+向量相加必須同座標系；不乘的話「靜止原地旋轉」轉一圈讀值正負抵消、平均趨零，會騙過初始化的激勵檢查。
+對照：avgW（:272）沒乘 dR，各時刻機體系的 ω 直接平均（粗略統計，用途只是初始化把關）。
 
 ### mpImuPreintegratedFrame vs mpImuPreintegrated（兩個不同的累積器，容易搞混）
 - `mpImuPreintegratedFrame`：**從上一幀到當前幀**這一小段時間的 IMU 預積分（`Tracking.cc:1915` 賦值）。
@@ -94,6 +98,51 @@ settings->camera1()` 也就是 `calibration1_`。而 `calibration1_` 的參數 0
 見 `Tracking.cc:2776` 的 `SetPose(Sophus::SE3f())` 分支），所以 t=0 時 camera→body 數值上
 剛好等於 world→body；之後幀就不再有這個等價關係。
 
+### Nga / NgaWalk（與其來源 Calib::Cov / Calib::CovWalk）
+IMU 預積分用的雜訊協方差矩陣，型別 `Eigen::DiagonalMatrix<float,6>`（宣告 `include/ImuTypes.h:214`）。
+- `Nga`（**N**oise-**g**yro-**a**cc）：IMU **量測白雜訊**協方差，對角線 `[ng², ng², ng², na², na², na²]`（前三陀螺、後三加速度計）。
+- `NgaWalk`：IMU **bias 隨機游走（random walk）**協方差，對角線 `[ngw², ngw², ngw², naw², naw², naw²]`。
+
+來源鏈：EuRoC.yaml 的四個雜訊參數 `IMU.NoiseGyro/NoiseAcc/GyroWalk/AccWalk`（給的是**標準差 σ**）
+→ `Calib::Set()`（`src/ImuTypes.cc:565-580`）**平方**成變異數存進 `Cov`/`CovWalk`（`Cov.diagonal() << ng2,...`，協方差 = σ²）
+→ `Preintegrated` 建構子（`src/ImuTypes.cc:161-162`）`Nga = calib.Cov; NgaWalk = calib.CovWalk;` 拷進預積分物件。
+
+用途：預積分除了算均值 `dR/dV/dP`，還要傳遞不確定度（協方差 `C`／資訊矩陣 `Info`）。
+每次 `IntegrateNewMeasurement` 把 `Nga` 疊進協方差傳遞（誤差隨積分步數累積）；`NgaWalk` 當 bias 在關鍵幀間漂移的先驗。
+累積出的協方差最終成為**後端優化中這條 IMU 約束的權重**（雜訊越大權重越低）。
+
+### IMU bias 生命週期（誕生 → 首次估計 → 傳遞 → 迭代）
+bias 沒有離線標定值，完全線上估計，流程四階段：
+1. **誕生（全零）**：`Bias()` 預設建構六分量全 0（`include/ImuTypes.h:73`）；系統啟動的第一個預積分器用全零 bias（`Tracking.cc:667`），追蹤丟失重啟同樣歸零（`Tracking.cc:1484/2761/2909/3191`）。
+2. **首次估計**：`LocalMapping::InitializeIMU`（`LocalMapping.cc:1828`）→ `Optimizer::InertialOptimization`：
+   拿純視覺軌跡當基準，把重力方向/尺度/速度/**整段共用的一組 bias 頂點**（`Optimizer.cc:3738-3745`）一起優化；
+   bias 另有拉向 0 的先驗邊 `EdgePriorGyro/Acc`（`Optimizer.cc:3759-3768`，權重 priorG=1e2/priorA=1e10）。
+   優化後逐 KF `SetNewBias`，新舊差 >0.01 加做 `Reintegrate()`（`Optimizer.cc:3871-3877`）。
+3. **日常傳遞（繼承制）**：幀對幀預積分用上一幀 bias 當線性化點（`Tracking.cc:1849`）；
+   `PredictStateIMU` 地圖剛更新用上一 KF 的 bias、否則用上一幀的並直接繼承（`Tracking.cc:1960-1990`）；
+   建新 KF 時寫入 KF 並起算下一段預積分（`Tracking.cc:3956/3973`）；
+   優化後的新 bias 經 `UpdateFrameIMU` 的 `mLastBias` 中繼推回前後幀（`Tracking.cc:4930-4935`）。
+4. **迭代更新**：bias 是 g2o 頂點（`VertexGyroBias`/`VertexAccBias`），在每幀 `PoseInertialOptimization*`
+   （`Optimizer.cc:451-459`，回寫 864-868）、每 KF 的 `LocalInertialBA`（窗口內每 KF 各一組頂點，
+   `Optimizer.cc:2375-2420`，回寫 2769-2773）、及 `FullInertialBA` 中反覆重估。
+   約束來源：`EdgeInertial`（視覺-慣性殘差，靠 GetDelta* 感知 bias）＋ `EdgeGyroRW`/`EdgeAccRW`
+   （random walk 邊，誤差＝相鄰 KF bias 之差，`G2oTypes.h:746-751`；資訊矩陣取自預積分協方差 `C` 的
+   (9,9)/(12,12) 區塊——即 [[Nga / NgaWalk]] 條目中 `NgaWalk` 累加進 `C` 的部分，yaml 的
+   GyroWalk/AccWalk 在此閉環：它決定優化器允許 bias 漂多快）。
+
+### b / bu / db / JRg,JVg,JVa,JPg,JPa（預積分的 bias 一階修正機制）
+預積分 `dR/dV/dP` 是在**線性化點 `b`**（舊 bias）下積出來的（積分時扣 `b`，`ImuTypes.cc:280-282`）。
+優化器改了 bias 後不必重積幾百筆 IMU，用一階近似跟上（Forster 預積分論文做法）：
+- `JRg/JVg/JVa/JPg/JPa`：dR/dV/dP 對 bias 的敏感度（Jacobian），在 `IntegrateNewMeasurement`
+  裡遞推累積（`ImuTypes.cc:306-309, 333`）。
+- `bu`＝最新 bias，`db = bu - b`：由 `SetNewBias` 更新（`ImuTypes.cc:373-384`）。
+- `GetDeltaRotation/Velocity/Position(b_new)`（`ImuTypes.cc:402-441`）：
+  `dR·exp(JRg·dbg)`、`dV + JVg·dbg + JVa·dba`、`dP + JPg·dbg + JPa·dba`——泰勒一階修正，
+  幾次矩陣乘法就得到新 bias 下的積分值；`EdgeInertial::computeError`（`G2oTypes.cc:594-613`）就靠這三個函式算殘差。
+- 一階近似失效的保險：bias 改動 >0.01 觸發 `Reintegrate()`（`ImuTypes.cc:231-238`）——
+  用快取的原始量測 `mvMeasurements` 以新 bias 全部重積，並重設線性化點 `b = bu`。
+  這也是預積分物件要保留原始 IMU 讀數的原因。
+
 ## SuperPoint / 本專案特有
 
 ### lastmatch / lastmatchnum / lastmatchtrack
@@ -106,3 +155,114 @@ settings->camera1()` 也就是 `calibration1_`。而 `calibration1_` 的參數 0
 
 ### adaptivethresold（原作者拼字，非 typo 修正對象）
 上述自適應閾值機制的開關，2026-07-01 使用者打開試驗中。
+
+## C++ 語言與並行（多 thread）機制
+
+### std::mutex（互斥鎖本體）
+保護共享資料的鎖，保證同一時間只有一個 thread 能進入被保護的區段。本 repo 例：
+`mMutexImuQueue`（宣告於 `include/Tracking.h:247`）保護 IMU 佇列 `mlQueueImuData`——
+IMU 資料由感測器 thread 塞入、tracking thread 取出，兩條 thread 同時碰同一 queue 會出錯，故上鎖。
+
+### std::unique_lock（RAII 鎖包裝）／RAII
+`unique_lock<mutex> lock(m)`：**建構時自動對 m 上鎖，解構時（變數離開最近的一對 `{ }` 作用域）自動解鎖**。
+這就是 RAII（Resource Acquisition Is Initialization，資源取得即初始化）：資源的生命週期綁在物件生命週期上，
+不用手動 unlock，即使中途 `break`/`return`/丟例外，解構子照跑、鎖一定會被放掉（裸 `mutex.lock()/unlock()` 中途跳出容易忘記解鎖而死鎖）。
+**鎖的作用域 = 宣告它的那對 `{ }`，不是某個 if/else 的 `}`。**
+例：`Tracking.cc:1806` 的 `lock` 宣告在 1805 開的匿名區塊裡，一直活到 **1835** 的 `}` 才解鎖
+（不是 `else` 的 `}`＝1834，差一行）。
+
+### 縮小臨界區（critical section）／匿名 `{ }` 區塊
+臨界區＝被鎖保護、同時只允許一個 thread 進入的程式碼範圍。用一對額外的匿名 `{ }` 把
+`unique_lock` 框住，可精準控制解鎖時機、把臨界區壓到最小。
+例：`Tracking.cc:1805-1835` 特意多包一層 `{ }`，讓「碰 queue」一做完就解鎖，
+避免在 1837 的 `usleep(500)` 睡覺時還握著鎖，擋住產生 IMU 的那條 thread 塞資料。
+
+### mbImuPreintegrated / setIntegrated()（「處理完畢」旗標，跨 thread 同步用）
+`Frame.h:332` 宣告，`Frame.cc:1514-1517` 的 `setIntegrated()` 上鎖後設為 true，
+`Frame.cc:1505-1508` 的 `imuIsPreintegrated()` 讀取。
+語義是「這一幀的預積分**處理流程已結束**」，不是「預積分成功算出來了」——
+所以 `PreintegrateIMU()` 的三個出口（無上一幀 `Tracking.cc:1787`、queue 空 `1797`、正常算完 `1919`）
+都要呼叫它。為什麼不能直接 return：LocalMapping thread 在 IMU 初始化時會呼叫
+`Tracking::UpdateFrameIMU()`（`Tracking.cc:4900`），裡面 `Tracking.cc:4937-4941` 用
+`while(!mCurrentFrame.imuIsPreintegrated()) usleep(500);` 空轉等待 tracking thread 把當前幀
+預積分做完。若提前 return 不標記，該幀旗標永遠是 false，LocalMapping 會卡在這個迴圈裡不出來。
+
+### mlQueueImuData vs mvImuFromLastFrame（IMU 資料的兩層容器）
+- `mlQueueImuData`（list，`Tracking.h` 宣告，受 `mMutexImuQueue` 保護）：感測器端 `GrabImuData()`
+  （`Tracking.cc:1771-1775`）推進來的**所有還沒被消化的** IMU 資料。時間範圍不是「上一幀到當前幀」，
+  而是「大約上一幀時間戳（上一輪留下的跨幀那筆）～ 最新收到的一筆（通常已超過當前幀，
+  因為 IMU 200Hz 跑在影像處理前面）」。
+- `mvImuFromLastFrame`（vector，每幀清空重建）：`PreintegrateIMU()` 的篩選迴圈
+  （`Tracking.cc:1801-1838`）從 queue 抽出的「上一幀～當前幀」區間，才是真正拿去積分的資料。
+  篩選規則（容忍 mImuPer=1ms）：太早的丟棄；區間內的複製後 pop；
+  第一筆 ≥ 當前幀時間的**複製但不 pop**（`1826` 只 push 沒 pop）→ 留在 queue 裡當下一幀的起點。
+  補充：跨幀那筆沒有「超過多久」的上限（`1823` else 分支照收），但積分時它只當線性內插的端點，
+  `tstep` 截在當前幀時間（`Tracking.cc:1897`），積分總時長恆為上一幀→當前幀，不會多算。
+  另注意 `1843-1846` 的 `n==0` 提前 return 是唯一**沒有** setIntegrated 的出口（原版 ORB-SLAM3 亦然）。
+
+### tini / tab / tend（預積分首末段的時間補償變數，PreintegrateIMU 迴圈內）
+積分段的邊界永遠對齊影像幀時刻；邊界上沒有 IMU 實測值，就用相鄰兩筆線性內插補出來。
+- `tab`＝相鄰兩筆 IMU 的間隔（`Tracking.cc:1867、1891`），內插的分母。
+- `tini`＝IMU0 離**上一幀時刻**（首段的前端邊界）多遠（`1869`，可正可負）；
+  首段用 `a0-(a1-a0)*(tini/tab)` 反推上一幀時刻的值（`1874-1875`），tstep 從上一幀起算（`1879`）。
+- `tend`＝末筆 IMU 超出**當前幀時刻**（末段的後端邊界）多少（`1892`）；
+  末段內插出當前幀時刻的值（`1893-1896`），tstep 截在當前幀（`1897`）。
+中間段兩端剛好都是 IMU 實測值，直接平均（`1881-1887`）。
+
+### IMU::Preintegrated 狀態量（dR/dV/dP、C、J 系列，ImuTypes.h:212-220）
+一個物件＝「幀 i → 幀 j 的相對運動包裹」，與起點絕對位姿/速度/重力無關（重力在使用端如
+PredictStateIMU 的 Gz 項才加回）。`IntegrateNewMeasurement()`（ImuTypes.cc:247-338）每小段累積一次：
+- `dR/dV/dP`：起點座標系下的相對旋轉/速度變化/位移；更新順序固定 P→V→R，
+  因為每行只能用「該小段開始時」的狀態，被依賴者最晚更新（252-254 行註解）。
+- `C`（15×15）：前 9 維 [δθ,δv,δp] 協方差，經 `C=A·C·Aᵀ+B·Nga·Bᵀ` 傳遞（311 行）；
+  後 6 維 bias，每步 `+= NgaWalk`（隨機游走，313 行）。求逆後當優化的資訊矩陣（權重）。
+- `JRg/JVg/JVa/JPg/JPa`：dR/dV/dP 對 bias 的雅可比，優化微調 bias 時做一階修正、免重積分；
+  bias 大改才用 `Reintegrate()`（231-238 行）拿 `mvMeasurements` 原始資料全部重積。
+- `avgA/avgW`：加權平均加/角速度；avgA 用在 Tracking.cc:2787 檢查初始化前加速度激勵是否足夠。
+- `NormalizeRotation`（301 行）：連乘浮點誤差會讓 dR 漂離正交，定期拉回合法旋轉矩陣。
+
+### 變數命名前綴（ORB-SLAM 匈牙利式命名，全 repo 通用）
+開頭小寫字母是型別/身分縮寫，不是單字：`m`=成員變數、`v`=vector、`l`=list、`p`=指標、
+`b`=bool、`n`=整數，可疊加。例：`mvMeasurements`（成員+vector，ImuTypes.h:248）、
+`mlQueueImuData`（成員+list）、`mpPrevFrame`（成員+指標）、`mbImuPreintegrated`（成員+bool）、
+`mnId`（成員+整數）、`mvpMapPoints`（成員+vector+指標）。無 `m` 開頭者多為區域變數或參數。
+
+### IMU::Bias / bias（零偏、零飄）與扣除位置
+誤差模型：讀值＝真值＋bias＋白噪聲。bias 是慢變的系統性偏移，不扣會被積分放大
+（速度誤差∝t、位置∝t²），所以是待估計量，優化器會更新（配合 J 系列一階修正／Reintegrate）。
+`IMU::Bias`（ImuTypes.h:62-86）＝六個 float：`bax/bay/baz`（加速度計）、`bwx/bwy/bwz`（陀螺儀，w=ω）。
+扣除位置：加速度在 `IntegrateNewMeasurement` 的 `acc`（ImuTypes.cc:281）；
+陀螺儀實際在 `IntegratedRotation` 建構子內（ImuTypes.cc:128-130），
+282 行的 `accW`（名字誤導，是角速度）只供 avgW 統計用。
+`acc << x,y,z` 的 `<<` 是 Eigen comma initializer，非位移運算。
+補充（Preintegrated 內的三兄弟，ImuTypes.h:217-229）：`b`＝積分時假設的 bias（一階修正的基準點）、
+`bu`＝優化後更新的 bias（SetNewBias 寫入）、`db`＝bu−b 的 6 維小量；
+db 太大時 `Reintegrate()` 以 bu 為新基準重積（ImuTypes.cc:235 `Initialize(bu)`）。
+
+### integrable / mvMeasurements（預積分的「原料倉」）
+`Preintegrated::integrable`（ImuTypes.h:231-246）＝純資料 struct：`a`（加速度計讀值）、`w`（陀螺讀值，皆未扣 bias）、`t`（該筆 dt）。
+建構子只做成員初始化列表打包，無運算。`IntegrateNewMeasurement` 開頭（ImuTypes.cc:250）每筆先存進
+`mvMeasurements` 再積分——dR/dV/dP 是加工品、這裡是原料：bias 大改時 `Reintegrate()`（ImuTypes.cc:236）、
+刪 KF 併段時 `MergePrevious()`（ImuTypes.cc:359）都靠它逐筆回放重積。`serialize` 供 boost 存地圖用。
+
+### 軸角向量（axis-angle）φ = ω·dt
+歐拉旋轉定理：任何 3D 旋轉＝繞某軸 u（單位向量）轉某角 θ。軸角向量把兩者打包：`φ = θ·u`
+——長度 `|φ|`＝角度、方向 `φ/|φ|`＝軸（u 長度恆為 1，「長度欄位」空著剛好存 θ）；右手定則定轉向。
+ω 用同一打包（方向＝瞬時轉軸、長度＝rad/s），dt 內視 ω 不變 → 這段的旋轉軸角＝`ω·dt`。
+對應 `IntegratedRotation` 建構子：ImuTypes.cc:128-130 的 x,y,z＝φ 分量、133-134 的 `d`＝解包出的 θ。
+陷阱：兩個軸角**不可相加**合成旋轉（除非同軸），要各自 Exp 成矩陣後相乘（`dR·Exp(φ)`）；小角度才近似可加。
+
+### 預積分的數學骨架（IntegrateNewMeasurement 內，ImuTypes.cc:247-338）
+三件工具推出全部公式：①`hat(a)b=a×b`（交換帶負號 `hat(a)b=−hat(b)a`）
+——hat 把 v=(x,y,z) 排成反對稱矩陣 `[[0,−z,y],[z,0,−x],[−y,x,0]]`（Wᵀ=−W），
+目的：叉積矩陣化才能自乘（Rodrigues 的 W²）、才能把 δφ 提出來求 Jacobian（Wacc 的由來，ImuTypes.cc:295）。
+名詞注意：叉積＝台灣教材的「外積」a×b（輸出向量）；但英文 outer product 是 abᵀ（輸出矩陣），內積 aᵀb 輸出純量，三者勿混。
+單位軸 u 有 `hat(u)²=uuᵀ−I`，故 Rodrigues 的 W² 版（程式碼用）與 uuᵀ 版（部分文獻用）等價；
+②Exp/Rodrigues（149 行）把軸角變旋轉矩陣，右雅可比 `Jr`＝「軸角加法擾動→群上乘法擾動」的匯率
+（`Exp(θ+δ)≈Exp(θ)·Exp(Jr·δ)`）；③一階泰勒 `Exp(δφ)≈I+hat(δφ)`、移位 `R·Exp(φ)·Rᵀ=Exp(Rφ)`。
+- 本體＝運動學＋座標翻譯：`dP+=dV·dt+½dR·acc·dt²`、`dV+=dR·acc·dt`、`dR←dR·Exp((ω−bg)dt)`（右乘＝機體系接旋轉）。無重力，使用端才補 g。
+- 誤差態 η=[δφ,δv,δp]：`η←A·η+B·n`，A(0,0)=ΔRᵀ（誤差換座標）、A(3,0)=−dR·dt·Wacc（姿態誤差×加速度滲入速度）、
+  A(6,3)=dt·I；B(0,0)=Jr·dt、B(3,3)=dR·dt。協方差 `C←A·C·Aᵀ+B·Nga·Bᵀ`（線性系統的方差傳遞），bias 塊每步 +NgaWalk（隨機游走）。
+- J 系列＝∂(dR,dV,dP)/∂bias 的遞推（一階修正免重積分）：`JVa−=dR·dt`、`JVg−=dR·dt·Wacc·JRg`（鏈式經 dR）、
+  `JRg←ΔRᵀ·JRg−Jr·dt`。所有遞推右邊只用「段初」值 → 更新順序 dP→dV、JP→JV→（dR）→JRg 不可換。
+文獻：Forster《On-Manifold Preintegration》eq.35-38（本體）、eq.62-63（協方差）；ORB_SLAM3 issue #212（變形）。

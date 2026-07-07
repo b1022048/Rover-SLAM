@@ -244,9 +244,9 @@ void Preintegrated::Reintegrate()
  * @param[in] angVel        陀螺仪数据
  * @param[in] dt            两图像 帧之间时间差
  */
-void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration, const Eigen::Vector3f &angVel, const float &dt)
+void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration, const Eigen::Vector3f &angVel, const float &dt) //要完全讀懂這個比預計的還要花時間，建議回學校再讀，會比較方便
 {
-    // 保存imu数据，利用中值积分的结果构造一个预积分类保存在mvMeasurements中
+    // 保存imu数据，利用中值积分的结果构造一个预积分类保存在mvMeasurements中 member vector of Measurements——m（成員變數）＋ v（vector）＋ Measurements（IMU 量測值）
     mvMeasurements.push_back(integrable(acceleration, angVel, dt));
 
     // Position is updated firstly, as it depends on previously computed velocity and rotation.
@@ -256,20 +256,34 @@ void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration,
     // Matrices to compute covariance
     // Step 1.构造协方差矩阵
     // 噪声矩阵的传递矩阵，这部分用于计算i到j-1历史噪声或者协方差
-    Eigen::Matrix<float, 9, 9> A;
+    Eigen::Matrix<float, 9, 9> A; //A為舊的旋轉 速度 位置與新的旋轉 速度 位置的關係
     A.setIdentity();
+    /*
+                    行 0-2（舊 δφ）           行 3-5（舊 δv）    行 6-8（舊 δp）
+
+    列 0-2（新δφ） ⎡   dRiᵀ      (:319)c          0₃ₓ₃              0₃ₓ₃    ⎤
+    列 3-5（新δv） ⎢  −dR·dt·Wacc  (:297)c        I₃ₓ₃              0₃ₓ₃    ⎥
+    列 6-8（新δp） ⎣  −½dR·dt²·Wacc (:298)c     dt·I  (:285)        I₃ₓ₃    ⎦
+    */
     // 噪声矩阵的传递矩阵，这部分用于计算j-1新的噪声或协方差，这两个矩阵里面的数都是当前时刻的，计算主要是为了下一时刻使用
-    Eigen::Matrix<float, 9, 6> B;
+    Eigen::Matrix<float, 9, 6> B; //B為舊的陀螺儀bias  加速度bias與新的旋轉 速度 位置的關係
     B.setZero();
+    /* 
+                    行 0-2：ng（陀螺雜訊）      行 3-5：na（加計雜訊）
+
+    列 0-2（δφ）  ⎡    Jr·dt   (:320)c               0₃ₓ₃          ⎤
+    列 3-5（δv）  ⎢     0₃ₓ₃                    dR·dt   (:286)     ⎥
+    列 6-8（δp）  ⎣     0₃ₓ₃                   ½·dR·dt²  (:287)    ⎦
+    */
 
     // 考虑偏置后的加速度、角速度
     Eigen::Vector3f acc, accW;
-    acc << acceleration(0) - b.bax, acceleration(1) - b.bay, acceleration(2) - b.baz;
-    accW << angVel(0) - b.bwx, angVel(1) - b.bwy, angVel(2) - b.bwz;
-
+    acc << acceleration(0) - b.bax, acceleration(1) - b.bay, acceleration(2) - b.baz;//acc 是校正後的加速度 acc << 甲, 乙, 丙; 是 Eigen 的 comma initializer：依序把三個純量填進向量的三個分量。
+    accW << angVel(0) - b.bwx, angVel(1) - b.bwy, angVel(2) - b.bwz;//accW 是校正後的角速度
+    //矩陣右乘 dR_總 = R₁ · R₂    ←  R₂ 作用在「R₁ 轉完之後的機體系」裡
     // 记录平均加速度和角速度
-    avgA = (dT * avgA + dR * acc * dt) / (dT + dt);
-    avgW = (dT * avgW + accW * dt) / (dT + dt);
+    avgA = (dT * avgA + dR * acc * dt) / (dT + dt);//dt為兩筆IMU之間的時間 dR只是在轉換座標系
+    avgW = (dT * avgW + accW * dt) / (dT + dt);//角速度只做粗略的估計而已，加上軸有沒有旋轉都一樣(右手定則 大拇哥為角速度方向，四指為旋轉方向) 所以不需要做座標系轉換
 
     // Update delta position dP and velocity dV (rely on no-updated delta rotation)
     // 根据没有更新的dR来更新dP与dV  eq.(38)
@@ -278,13 +292,13 @@ void Preintegrated::IntegrateNewMeasurement(const Eigen::Vector3f &acceleration,
 
     // Compute velocity and position parts of matrices A and B (rely on non-updated delta rotation)
     // 根据η_ij = A * η_i,j-1 + B_j-1 * η_j-1中的Ａ矩阵和Ｂ矩阵对速度和位移进行更新
-    Eigen::Matrix<float, 3, 3> Wacc = Sophus::SO3f::hat(acc);
-
-    A.block<3, 3>(3, 0) = -dR * dt * Wacc;
-    A.block<3, 3>(6, 0) = -0.5f * dR * dt * dt * Wacc;
-    A.block<3, 3>(6, 3) = Eigen::DiagonalMatrix<float, 3>(dt, dt, dt);
-    B.block<3, 3>(3, 3) = dR * dt;
-    B.block<3, 3>(6, 3) = 0.5f * dR * dt * dt;
+    Eigen::Matrix<float, 3, 3> Wacc = Sophus::SO3f::hat(acc); //hat()為反對稱矩陣
+    // A.block<3,3>(r, c) ＝A 裡面一塊 3×3 的子矩陣，左上角在第 r 列、第 c 行。
+    A.block<3, 3>(3, 0) = -dR * dt * Wacc; // for速度（Eq 60：δφ→δv）
+    A.block<3, 3>(6, 0) = -0.5f * dR * dt * dt * Wacc; // for位置（Eq 61：δφ→δp）
+    A.block<3, 3>(6, 3) = Eigen::DiagonalMatrix<float, 3>(dt, dt, dt); // for位置（Eq 61：δv→δp）
+    B.block<3, 3>(3, 3) = dR * dt; // for速度（Eq 60：na→δv）
+    B.block<3, 3>(6, 3) = 0.5f * dR * dt * dt; // for位置（Eq 61：na→δp）
 
     // Update position and velocity jacobians wrt bias correction
     // 因为随着时间推移，不可能每次都重新计算雅克比矩阵，所以需要做J(k+1) = j(k) + (~)这类事，分解方式与AB矩阵相同
