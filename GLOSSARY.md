@@ -239,6 +239,20 @@ PredictStateIMU 的 Gz 項才加回）。`IntegrateNewMeasurement()`（ImuTypes.
 `bu`＝優化後更新的 bias（SetNewBias 寫入）、`db`＝bu−b 的 6 維小量；
 db 太大時 `Reintegrate()` 以 bu 為新基準重積（ImuTypes.cc:235 `Initialize(bu)`）。
 
+### SearchByBoWSP（命名陷阱：名字有 BoW，內部是 LightGlue）
+`SPmatcher::SearchByBoWSP`（SPmatcher.cc:1524 KF-KF 版、:1670 KF-Frame 版）**不用 BoW 分桶**——
+把兩幀全部特徵點＋描述子經 `MatchingPoints_onnx`（:374）→ `featureMatcher->Matcher_Inference`
+送 LightGlue ONNX（onnxmodel/lightglue_sim.onnx）全對全匹配；名字只是沿用舊介面方便 drop-in 替換。
+呼叫點：TrackReferenceKeyFrame（Tracking.cc:3294）、Relocalization（:4530）、回環驗證（LoopClosing.cc:1279）。
+BoW 在本 fork 的現役職責只剩**候選幀檢索**：ComputeBoW3（Frame.cc:1046，SP 詞典 mBow3Vec）→
+KeyFrameDatabase 倒排索引（KeyFrameDatabase.cc:49-71）→ DetectRelocalizationCandidates（Tracking.cc:4492）
+／DetectNBestCandidates_sp（LoopClosing.cc:611）。幀對幀的 FeatureVector 分桶匹配已退役。
+舊制 mBowVec 管線（ORB 詞典）在本 fork **整組斷電**：ComputeBoW() 呼叫點全註解（Tracking.cc:4487、
+LocalMapping.cc:405，mBowVec 恆為空）；吃 mBowVec 的舊檢索函數零呼叫；DetectCommonRegionsFromBoW
+（內含真 BoW 分桶的 SearchByBoW，LoopClosing.cc:867）呼叫點 :632/:642 已註解，現役為 _sp 版（:633/:643）。
+另：Tracking.cc:3284 的 ComputeBoW3 是化石——SearchByBoWSP 不用 BoW、KF 建構子不拷 mBow3Vec（KeyFrame.cc:52
+只拷舊制向量），該次計算無消費者。
+
 ### integrable / mvMeasurements（預積分的「原料倉」）
 `Preintegrated::integrable`（ImuTypes.h:231-246）＝純資料 struct：`a`（加速度計讀值）、`w`（陀螺讀值，皆未扣 bias）、`t`（該筆 dt）。
 建構子只做成員初始化列表打包，無運算。`IntegrateNewMeasurement` 開頭（ImuTypes.cc:250）每筆先存進
